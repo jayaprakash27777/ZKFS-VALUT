@@ -1,0 +1,37 @@
+node_modules/
+.next/
+out/
+build/
+dist/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Java / Maven
+target/
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.log
+*.zip
+*.tar.gz
+*.rar
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# DB / MinIO data (if local)
+docker/data/
+backend/data/
+
+# JDK (from IDE)
+backend/.jdk21/
+backend/jdk21/
