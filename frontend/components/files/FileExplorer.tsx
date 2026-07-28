@@ -26,10 +26,15 @@ import { useVaultStore, selectActiveUploads, selectSelectedIds } from '@/store/u
 import { useDownloader }                    from '@/hooks/useDownloader';
 import { filesApi }                         from '@/lib/api/files';
 import { foldersApi, type Folder }          from '@/lib/api/folders';
-import { DownloadPanel }                    from '@/components/files/DownloadPanel';
-import { ShareModal }                       from '@/components/files/ShareModal';
-import { ShareUserModal }                   from '@/components/files/ShareUserModal';
-import { FileInfoDrawer }                   from '@/components/files/FileInfoDrawer';
+import dynamic from 'next/dynamic';
+
+const DownloadPanel = dynamic(() => import('@/components/files/DownloadPanel').then(mod => mod.DownloadPanel), { ssr: false });
+const ShareModal = dynamic(() => import('@/components/files/ShareModal').then(mod => mod.ShareModal), { ssr: false });
+const ShareUserModal = dynamic(() => import('@/components/files/ShareUserModal').then(mod => mod.ShareUserModal), { ssr: false });
+const FileInfoDrawer = dynamic(() => import('@/components/files/FileInfoDrawer').then(mod => mod.FileInfoDrawer), { ssr: false });
+import { EmptyVaultAnimation }              from '@/components/ui/EmptyVaultAnimation';
+import { EmptyTrashAnimation }              from '@/components/ui/EmptyTrashAnimation';
+import { TiltCard }                         from '@/components/ui/TiltCard';
 import type { VaultFile }                   from '@/types/vault';
 import apiClient                            from '@/lib/api/client';
 
@@ -173,12 +178,13 @@ function DeleteConfirmDialog({
 // ── Download Modal ────────────────────────────────────────────────────────────
 
 function DownloadModal({
-  fileId, displayName, kek, offline, onClose,
+  fileId, displayName, kek, offline, isPasswordProtected, onClose,
 }: {
   fileId:      string;
   displayName: string;
   kek:         CryptoKey | null;
   offline?:    boolean;
+  isPasswordProtected?: boolean;
   onClose:     () => void;
 }) {
   return (
@@ -214,6 +220,7 @@ function DownloadModal({
               kek={kek}
               displayName={displayName}
               offline={offline}
+              isPasswordProtected={isPasswordProtected}
               onComplete={onClose}
             />
           )}
@@ -389,15 +396,16 @@ const FolderCard = memo(({
       layout
       onClick={onClick}
       onDoubleClick={() => onNavigate(folder.id, folder.name || 'Encrypted folder')}
-      whileHover={{ y: -4, scale: 1.02 }}
-      whileTap={{ scale: 0.96 }}
+      whileHover={{ y: -8, rotateX: 5, rotateY: -5, scale: 1.05 }}
+      whileTap={{ scale: 0.96, rotateX: 0, rotateY: 0 }}
       transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-      className={`relative rounded-2xl border cursor-pointer select-none overflow-hidden
-        transition-shadow duration-200 group border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-violet-500/30 hover:shadow-neon-violet`}
+      className={`glass-3d cursor-pointer select-none group border-white/[0.06]`}
     >
-      <div className={`flex items-center justify-center h-24 relative bg-white/[0.02]`}>
-        <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10`}>
-          <FolderOpen className="h-6 w-6 text-violet-400" />
+      <div className={`flex items-center justify-center h-24 relative bg-white/[0.02] overflow-hidden`}>
+        {/* Glow behind the icon on hover */}
+        <div className="absolute inset-0 bg-violet-500/20 opacity-0 group-hover:opacity-100 blur-2xl transition-opacity duration-500" />
+        <div className={`relative flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10 transition-transform duration-300 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(139,92,246,0.3)]`}>
+          <FolderOpen className="h-6 w-6 text-violet-400 transition-colors duration-300 group-hover:text-violet-300" />
         </div>
       </div>
       <div className="p-3">
@@ -471,17 +479,17 @@ const FileCard = memo(({
   return (
     <FileContextMenu file={file} onPreview={onPreview} onDownload={onDownload} onDownloadOffline={onDownloadOffline}
                      onShare={onShare} onShareUser={onShareUser} onInfo={onInfo} onDelete={onDelete} onRestore={onRestore}>
+      <TiltCard maxTilt={15}>
       <motion.div
         layout
         onClick={onClick}
-        whileHover={{ y: -4, scale: 1.02 }}
-        whileTap={{ scale: 0.96 }}
+        whileHover={{ y: -8, rotateX: 5, rotateY: -5, scale: 1.05 }}
+        whileTap={{ scale: 0.96, rotateX: 0, rotateY: 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        className={`relative rounded-2xl border cursor-pointer select-none overflow-hidden
-          transition-shadow duration-200 group
+        className={`glass-3d cursor-pointer select-none group
           ${isSelected
-            ? 'border-violet-500/60 bg-violet-500/15 shadow-neon-violet z-10'
-            : 'border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-violet-500/30 hover:shadow-neon-violet'
+            ? 'border-violet-500/60 shadow-[0_0_30px_rgba(139,92,246,0.3)] z-10'
+            : 'border-white/[0.06]'
           }`}
       >
         {isSelected && (
@@ -493,14 +501,15 @@ const FileCard = memo(({
           </div>
         )}
 
-        <div className={`flex items-center justify-center h-24 relative
+        <div className={`flex items-center justify-center h-24 relative overflow-hidden
           ${isSelected ? 'bg-violet-500/10' : 'bg-white/[0.02]'}`}>
+          <div className="absolute inset-0 bg-violet-500/10 opacity-0 group-hover:opacity-100 blur-2xl transition-opacity duration-500" />
           {file.thumbnail ? (
-            <img src={file.thumbnail} alt={file.filename} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+            <img src={file.thumbnail} alt={file.filename} className="relative z-10 w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-all duration-500 group-hover:scale-105" />
           ) : (
-            <div className={`flex h-12 w-12 items-center justify-center rounded-xl
-              bg-white/[0.04] ${color}`}>
-              <Icon className="h-6 w-6" />
+            <div className={`relative z-10 flex h-12 w-12 items-center justify-center rounded-xl
+              bg-white/[0.04] transition-transform duration-300 group-hover:scale-110 group-hover:shadow-[0_0_15px_rgba(139,92,246,0.15)] ${color}`}>
+              <Icon className="h-6 w-6 transition-transform duration-300" />
             </div>
           )}
           <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5
@@ -522,6 +531,7 @@ const FileCard = memo(({
           </div>
         </div>
       </motion.div>
+      </TiltCard>
     </FileContextMenu>
   );
 });
@@ -553,10 +563,9 @@ const FileRow = memo(({
       <motion.div
         layout
         onClick={onClick}
-        whileHover={{ backgroundColor: 'rgba(255,255,255,0.03)' }}
-        className={`flex items-center gap-3 px-4 py-3 cursor-pointer select-none
-                    border-b border-white/[0.04] transition-colors duration-100 group
-          ${isSelected ? 'bg-violet-500/10 border-l-2 border-l-violet-500' : 'hover:bg-white/[0.025]'}`}
+        className={`flex items-center gap-3 px-4 py-3 cursor-pointer select-none mb-1 rounded-xl
+                    border border-white/[0.04] transition-all duration-300 group hover:-translate-y-[1px] hover:shadow-lg
+          ${isSelected ? 'bg-violet-500/20 border-violet-500/50' : 'bg-white/[0.02] hover:bg-white/[0.06] hover:border-violet-500/30'}`}
       >
         {file.thumbnail ? (
           <img src={file.thumbnail} alt={file.filename} className="shrink-0 flex h-8 w-8 items-center justify-center rounded-lg object-cover bg-white/[0.04]" />
@@ -632,10 +641,10 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
   }));
 
   // ── Local overlay state ────────────────────────────────────────────────────
-  const [downloadTarget, setDownloadTarget] = useState<{ id: string; name: string, offline?: boolean } | null>(null);
+  const [downloadTarget, setDownloadTarget] = useState<{ id: string; name: string, offline?: boolean, isPasswordProtected?: boolean } | null>(null);
   const [shareTarget,    setShareTarget]    = useState<{ id: string; name: string, isFolder?: boolean } | null>(null);
   const [shareUserTarget, setShareUserTarget] = useState<VaultFile | null>(null);
-  const [deleteTarget,   setDeleteTarget]   = useState<{ id: string; name: string } | null>(null);
+  const [deleteTargets,  setDeleteTargets]  = useState<{ id: string; name: string; isFolder?: boolean }[] | null>(null);
   const [infoTarget,     setInfoTarget]     = useState<VaultFile | null>(null);
   const [isDeleting,     setIsDeleting]     = useState(false);
 
@@ -647,15 +656,36 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
       const items = resp.content as VaultFile[];
       if (!kek) return items;
 
-      const { decryptFilenameFromStorage } = await import('@/lib/crypto/cipher');
+      const { decryptFilenameFromStorage, unwrapDEKForDownload } = await import('@/lib/crypto/cipher');
       return Promise.all(items.map(async f => {
         try {
-          f.filename = await decryptFilenameFromStorage(f.filenameEncrypted, kek);
+          if (f.isPasswordProtected) {
+            f.filename = await decryptFilenameFromStorage(f.filenameEncrypted, kek);
+          } else {
+            let keyToUse = kek;
+            if (f.wrappedDek && f.ivWrappedDek) {
+              try {
+                keyToUse = await unwrapDEKForDownload(f.wrappedDek, f.ivWrappedDek, kek);
+              } catch (e) {
+                // Ignore, will fallback to kek
+              }
+            }
+            try {
+              f.filename = await decryptFilenameFromStorage(f.filenameEncrypted, keyToUse);
+            } catch (e) {
+              if (keyToUse !== kek) {
+                // Try fallback to kek for backwards compat
+                f.filename = await decryptFilenameFromStorage(f.filenameEncrypted, kek);
+              } else {
+                throw e;
+              }
+            }
+          }
           if (f.thumbnailEncrypted) {
             f.thumbnail = await decryptFilenameFromStorage(f.thumbnailEncrypted, kek);
           }
         } catch (e) {
-          f.filename = 'Decryption error';
+          f.filename = (f.wrappedDek && !f.isPasswordProtected) ? 'Shared File (Encrypted)' : 'Decryption error';
         }
         return f;
       }));
@@ -751,13 +781,45 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
     return () => window.removeEventListener('keydown', h);
   }, [clearSelection]);
 
+  // ── Global Command Listeners (Cmd+K palette) ───────────────────────────────
+  React.useEffect(() => {
+    const handleDownloadSelected = () => {
+      if (selectedIds.size > 0) {
+        const firstId = Array.from(selectedIds)[0];
+        const file = serverFiles.find(f => f.id === firstId);
+        if (file) setDownloadTarget({ id: firstId, name: file.filename || 'unknown', isPasswordProtected: file.isPasswordProtected });
+      }
+    };
+    
+    const handleDeleteSelected = () => {
+      if (selectedIds.size > 0) {
+        const targets: { id: string; name: string; isFolder?: boolean }[] = [];
+        Array.from(selectedIds).forEach(id => {
+          const file = serverFiles.find(f => f.id === id);
+          if (file) targets.push({ id, name: file.filename || 'unknown', isFolder: false });
+          const folder = serverFolders.find(f => f.id === id);
+          if (folder) targets.push({ id, name: folder.name || 'unknown folder', isFolder: true });
+        });
+        if (targets.length > 0) setDeleteTargets(targets);
+      }
+    };
+
+    window.addEventListener('cmd:download-selected', handleDownloadSelected as EventListener);
+    window.addEventListener('cmd:delete-selected', handleDeleteSelected as EventListener);
+    
+    return () => {
+      window.removeEventListener('cmd:download-selected', handleDownloadSelected as EventListener);
+      window.removeEventListener('cmd:delete-selected', handleDeleteSelected as EventListener);
+    };
+  }, [selectedIds, serverFiles, serverFolders]);
+
   // ── Action handlers ────────────────────────────────────────────────────────
 
   const handlePreview = useCallback((id: string) => setPreviewFileId(id), [setPreviewFileId]);
 
   const handleDownload = useCallback((id: string) => {
     const file = serverFiles.find(f => f.id === id);
-    setDownloadTarget({ id, name: file?.filename ?? 'Encrypted file' });
+    setDownloadTarget({ id, name: file?.filename ?? 'Encrypted file', isPasswordProtected: file?.isPasswordProtected });
   }, [serverFiles]);
 
   const handleInfo = useCallback((id: string) => {
@@ -785,30 +847,36 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
 
   const handleDelete = useCallback((id: string) => {
     const file = serverFiles.find(f => f.id === id);
-    setDeleteTarget({ id, name: file?.filename ?? 'Encrypted file' });
+    setDeleteTargets([{ id, name: file?.filename ?? 'Encrypted file', isFolder: false }]);
   }, [serverFiles]);
 
   const confirmDelete = useCallback(async () => {
-    if (!deleteTarget) return;
+    if (!deleteTargets || deleteTargets.length === 0) return;
     setIsDeleting(true);
-    const isFolder = (deleteTarget as any).isFolder;
+    
     try {
-      if (currentView === 'trash') {
-        if (isFolder) await foldersApi.hardDeleteFolder(deleteTarget.id);
-        else await filesApi.hardDeleteFile(deleteTarget.id);
-      } else {
-        if (isFolder) await foldersApi.deleteFolder(deleteTarget.id);
-        else await filesApi.deleteFile(deleteTarget.id);
-      }
-      // Invalidate TanStack Query cache so the list refreshes
-      await queryClient.invalidateQueries({ queryKey: isFolder ? ['folders'] : ['files'] });
-      setDeleteTarget(null);
+      await Promise.allSettled(deleteTargets.map(async (target) => {
+        if (currentView === 'trash') {
+          if (target.isFolder) await foldersApi.hardDeleteFolder(target.id);
+          else await filesApi.hardDeleteFile(target.id);
+        } else {
+          if (target.isFolder) await foldersApi.deleteFolder(target.id);
+          else await filesApi.deleteFile(target.id);
+        }
+      }));
+      
+      // Invalidate both caches to be safe for mixed selections
+      await queryClient.invalidateQueries({ queryKey: ['folders'] });
+      await queryClient.invalidateQueries({ queryKey: ['files'] });
+      
+      setDeleteTargets(null);
+      clearSelection();
     } catch (err) {
       console.error('Delete failed:', err);
     } finally {
       setIsDeleting(false);
     }
-  }, [deleteTarget, queryClient, currentView]);
+  }, [deleteTargets, queryClient, currentView, clearSelection]);
 
   const handleRestore = useCallback(async (id: string) => {
     try {
@@ -830,7 +898,7 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
 
   const handleFolderDelete = useCallback((id: string) => {
     const folder = serverFolders.find(f => f.id === id);
-    setDeleteTarget({ id, name: folder?.name ?? 'Encrypted folder', isFolder: true } as any);
+    setDeleteTargets([{ id, name: folder?.name ?? 'Encrypted folder', isFolder: true }]);
   }, [serverFolders]);
 
   const handleNavigateFolder = useCallback((id: string, name: string) => {
@@ -869,26 +937,72 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
   // ── Empty state ────────────────────────────────────────────────────────────
   if (!items.length && !pendingUploads.length) {
     return (
-      <div className="flex items-center justify-center h-full">
+      <div className="relative flex items-center justify-center h-full w-full overflow-hidden">
+        {/* Animated Background Mesh */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <motion.div
+            animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.2, 0.1] }}
+            transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] rounded-full bg-violet-600/20 blur-[80px]"
+          />
+        </div>
+
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: { opacity: 0 },
+            visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
+          }}
+          className="relative z-10 flex flex-col items-center text-center max-w-sm"
         >
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl
-                          bg-white/[0.03] border border-white/8 mx-auto mb-4">
-            <Lock className="h-8 w-8 text-zinc-600" />
-          </div>
-          <p className="text-zinc-400 text-sm font-medium">No encrypted files yet</p>
-          <p className="text-zinc-600 text-xs mt-1">Drag files here or click Upload</p>
-          <button
-            onClick={onUploadClick}
-            className="mt-4 flex items-center gap-2 px-4 py-2 mx-auto rounded-lg
-                       bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium
-                       transition-colors"
+          {/* 3D Animated Vector Vault / Trash */}
+          <motion.div 
+            variants={{
+              hidden: { opacity: 0, scale: 0.8, y: 10 },
+              visible: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring', damping: 20 } }
+            }}
+            className="mb-6"
           >
-            <Upload className="h-3.5 w-3.5" /> Upload Files
-          </button>
+            {currentView === 'trash' ? <EmptyTrashAnimation /> : <EmptyVaultAnimation />}
+          </motion.div>
+
+          <motion.h3 
+            variants={{
+              hidden: { opacity: 0, y: 10 },
+              visible: { opacity: 1, y: 0 }
+            }}
+            className="text-lg font-bold font-outfit text-white tracking-tight mb-2"
+          >
+            {currentView === 'trash' ? 'Trash is empty' : 'Your vault is empty'}
+          </motion.h3>
+
+          <motion.p 
+            variants={{
+              hidden: { opacity: 0, y: 10 },
+              visible: { opacity: 1, y: 0 }
+            }}
+            className="text-zinc-400 text-sm leading-relaxed mb-8"
+          >
+            {currentView === 'trash' 
+              ? 'Files you delete will appear here before they are permanently erased.'
+              : 'Securely upload your files. They will be encrypted locally before leaving this device.'}
+          </motion.p>
+
+          {currentView !== 'trash' && (
+            <motion.button
+              variants={{
+                hidden: { opacity: 0, y: 10, scale: 0.95 },
+                visible: { opacity: 1, y: 0, scale: 1 }
+              }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onUploadClick}
+              className="btn-gloss flex items-center gap-2 px-6 py-3"
+            >
+              <Upload className="h-4 w-4 drop-shadow-md" /> Upload First File
+            </motion.button>
+          )}
         </motion.div>
       </div>
     );
@@ -986,12 +1100,12 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
                   isSelected={selectedIds.has(item.id)}
                   onClick={(e) => handleItemClick(item, vRow.index, e)}
                   onPreview={() => setPreviewFileId(item.id)}
-                  onDownload={() => setDownloadTarget({ id: item.id, name: item.filename || 'unknown' })}
-                  onDownloadOffline={() => setDownloadTarget({ id: item.id, name: item.filename || 'unknown', offline: true })}
+                  onDownload={() => setDownloadTarget({ id: item.id, name: item.filename || 'unknown', isPasswordProtected: item.isPasswordProtected })}
+                  onDownloadOffline={() => setDownloadTarget({ id: item.id, name: item.filename || 'unknown', offline: true, isPasswordProtected: item.isPasswordProtected })}
                   onShare={() => setShareTarget({ id: item.id, name: item.filename || 'unknown' })}
                   onShareUser={() => setShareUserTarget(item as VaultFile)}
                   onInfo={() => handleInfo(item.id)}
-                  onDelete={() => setDeleteTarget({ id: item.id, name: item.filename || 'unknown' })}
+                  onDelete={() => setDeleteTargets([{ id: item.id, name: item.filename || 'unknown', isFolder: false }])}
                   onRestore={handleRestore}
                 />
               )}
@@ -1018,6 +1132,21 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
               className="text-xs text-zinc-500 hover:text-white transition-colors"
             >
               Download
+            </button>
+            <button
+              onClick={() => {
+                const targets: { id: string; name: string; isFolder?: boolean }[] = [];
+                Array.from(selectedIds).forEach(id => {
+                  const file = serverFiles.find(f => f.id === id);
+                  if (file) targets.push({ id, name: file.filename || 'unknown', isFolder: false });
+                  const folder = serverFolders.find(f => f.id === id);
+                  if (folder) targets.push({ id, name: folder.name || 'unknown folder', isFolder: true });
+                });
+                if (targets.length > 0) setDeleteTargets(targets);
+              }}
+              className="text-xs text-red-500 hover:text-red-400 transition-colors ml-2"
+            >
+              Delete
             </button>
             <button
               onClick={clearSelection}
@@ -1065,6 +1194,7 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
           displayName={downloadTarget.name}
           kek={kek}
           offline={downloadTarget.offline}
+          isPasswordProtected={downloadTarget.isPasswordProtected}
           onClose={() => setDownloadTarget(null)} 
         />
       )}
@@ -1092,10 +1222,10 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
 
       {/* Delete Confirm */}
       <DeleteConfirmDialog
-        open={!!deleteTarget}
-        fileName={deleteTarget?.name ?? ''}
+        open={!!deleteTargets}
+        fileName={deleteTargets?.length === 1 ? deleteTargets[0].name : `${deleteTargets?.length} items`}
         onConfirm={confirmDelete}
-        onCancel={() => setDeleteTarget(null)}
+        onCancel={() => setDeleteTargets(null)}
         isDeleting={isDeleting}
       />
 

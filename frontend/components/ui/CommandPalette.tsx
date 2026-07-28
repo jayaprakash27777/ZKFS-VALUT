@@ -96,15 +96,14 @@ export function CommandPalette() {
     // Navigation
     { id: 'nav-dashboard', label: 'Dashboard', icon: LayoutGrid,   group: 'Navigation', action: () => { router.push('/dashboard'); setOpen(false); } },
     { id: 'nav-settings',  label: 'Settings',  icon: Settings,     group: 'Navigation', action: () => { router.push('/settings');  setOpen(false); } },
-    { id: 'nav-audit',     label: 'Audit Log', icon: FileText,     group: 'Navigation', action: () => { router.push('/audit');     setOpen(false); } },
 
     // Files
     { id: 'file-upload',   label: 'Upload Files',         icon: Upload,   group: 'Files', shortcut: '⌘U',
       action: () => { setOpen(false); document.getElementById('file-upload-input')?.click(); } },
     { id: 'file-download', label: 'Download Selected',    icon: Download, group: 'Files',
-      action: () => { setOpen(false); /* dispatch download action */ } },
+      action: () => { setOpen(false); window.dispatchEvent(new CustomEvent('cmd:download-selected')); } },
     { id: 'file-delete',   label: 'Delete Selected',      icon: Trash2,   group: 'Files',  danger: true,
-      action: () => { setOpen(false); /* dispatch delete action */ } },
+      action: () => { setOpen(false); window.dispatchEvent(new CustomEvent('cmd:delete-selected')); } },
 
     // View
     { id: 'view-grid', label: 'Switch to Grid View', icon: LayoutGrid, group: 'View', shortcut: '⌘1',
@@ -146,7 +145,7 @@ export function CommandPalette() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+                  className="fixed inset-0 z-50 bg-black/60 backdrop-blur-md"
                 />
               </Dialog.Overlay>
 
@@ -161,11 +160,12 @@ export function CommandPalette() {
                   className="fixed top-[15%] left-1/2 z-50 -translate-x-1/2 w-full max-w-lg px-4"
                 >
                   <Command
-                    className="rounded-2xl bg-zinc-900 border border-white/8
-                               shadow-2xl shadow-black/80 overflow-hidden"
+                    className="relative rounded-2xl bg-zinc-900/80 backdrop-blur-3xl border border-white/10
+                               shadow-[0_0_40px_rgba(139,92,246,0.15)] overflow-hidden
+                               before:absolute before:inset-0 before:bg-gradient-to-br before:from-violet-500/10 before:to-transparent before:pointer-events-none"
                   >
                     {/* Search input */}
-                    <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/[0.06]">
+                    <div className="relative z-10 flex items-center gap-3 px-4 py-3.5 border-b border-white/[0.06]">
                       <Search className="h-4 w-4 text-zinc-600 shrink-0" />
                       <Command.Input
                         value={query}
@@ -193,7 +193,7 @@ export function CommandPalette() {
                     </div>
 
                     {/* Command list */}
-                    <Command.List className="overflow-y-auto max-h-80 p-2">
+                    <Command.List className="relative z-10 overflow-y-auto max-h-80 p-2 scrollbar-none">
                       <Command.Empty className="flex flex-col items-center justify-center py-8 gap-2 text-center">
                         <CommandIcon className="h-8 w-8 text-zinc-700" />
                         <p className="text-sm text-zinc-500">No commands found for "{query}"</p>

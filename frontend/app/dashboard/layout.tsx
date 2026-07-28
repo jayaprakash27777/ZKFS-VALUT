@@ -16,6 +16,7 @@ import { useVaultStore }              from '@/store/useVaultStore';
 import { useAuth }                    from '@/hooks/useAuth';
 import { CommandPalette }             from '@/components/ui/CommandPalette';
 import { Sidebar }                    from '@/components/layout/Sidebar';
+import { UploadOptionsModal }         from '@/components/files/UploadOptionsModal';
 
 // ── Query client (singleton) ────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -258,33 +259,11 @@ function GlobalDragBackdrop({ onDrop }: { onDrop: (files: File[]) => void }) {
 // ── Layout ──────────────────────────────────────────────────────────────────
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const setCommandOpen = useVaultStore(s => s.setCommandOpen);
-  const addUpload      = useVaultStore(s => s.addUpload);
+  const setFilesToUpload = useVaultStore(s => s.setFilesToUpload);
 
   const handleFileDrop = useCallback((files: File[]) => {
-    files.forEach(file => {
-      const localId = crypto.randomUUID();
-      addUpload({
-        localId,
-        file,                        // ← actual File object for encryption
-        fileId:          null,
-        fileName:        file.name,
-        mimeType:        file.type,
-        fileSize:        file.size,
-        totalChunks:     Math.ceil(file.size / (5 * 1024 * 1024)),
-        phase:           'queued',
-        currentChunk:    0,
-        overallProgress: 0,
-        encryptSpeedMBs: 0,
-        uploadSpeedMBs:  0,
-        etaSeconds:      null,
-        bytesProcessed:  0,
-        startedAt:       null,
-        paused:          false,
-        abortController: new AbortController(),
-        error:           null,
-      });
-    });
-  }, [addUpload]);
+    setFilesToUpload(files);
+  }, [setFilesToUpload]);
 
 
   // Global Cmd+K shortcut
@@ -303,7 +282,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <QueryClientProvider client={queryClient}>
       {/* Noise-textured dark background */}
       <div
-        className="min-h-screen bg-[#09090b] text-zinc-100"
+        className="min-h-screen bg-mesh text-zinc-100"
         style={{
           backgroundImage: `
             radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.08) 0%, transparent 60%),
@@ -332,6 +311,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Global overlays */}
+        <UploadOptionsModal />
         <GlobalDragBackdrop onDrop={handleFileDrop} />
         <CommandPalette />
       </div>

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth }           from '@/hooks/useAuth';
 import { usePasskeys }       from '@/hooks/usePasskeys';
+import { TiltCard }          from '@/components/ui/TiltCard';
 
 // ── Animated background blobs ────────────────────────────────────────────────
 function BackgroundBlobs() {
@@ -185,6 +186,7 @@ export default function LoginPage() {
         transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
         className="relative z-10 w-full max-w-[420px]"
       >
+        <TiltCard maxTilt={8}>
         {/* Card */}
         <div className="rounded-[32px] border border-white/[0.12] bg-zinc-950/40 backdrop-blur-3xl
                         shadow-[0_0_80px_-20px_rgba(139,92,246,0.25)] overflow-hidden relative">
@@ -422,6 +424,7 @@ export default function LoginPage() {
           {/* Bottom gradient stripe */}
           <div className="h-px w-full bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
         </div>
+        </TiltCard>
 
         {/* Security pills below card */}
         <SecurityPills />

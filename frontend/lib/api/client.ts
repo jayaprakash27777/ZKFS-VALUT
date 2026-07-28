@@ -20,7 +20,9 @@ import axios, {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api';
+let envUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8080/api/';
+if (!envUrl.endsWith('/')) envUrl += '/';
+const API_BASE_URL = envUrl;
 
 const TOKEN_KEY         = 'zkfs_access_token';
 const REFRESH_TOKEN_KEY = 'zkfs_refresh_token';
@@ -143,7 +145,9 @@ apiClient.interceptors.response.use(
     };
 
     // ── 401 Unauthorized → attempt token refresh ──────────────────────────
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isAuthRoute = originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/register');
+    
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       const refreshToken = tokenStorage.getRefreshToken();
 
       if (!refreshToken) {

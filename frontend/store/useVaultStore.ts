@@ -30,6 +30,11 @@ interface VaultStore {
   /** Map<localId, PendingUpload> for O(1) updates */
   uploads:     Map<string, PendingUpload>;
 
+  // ── Pending Uploads Queue (Pre-upload) ─────────────────────────────────────
+  filesToUpload:     File[];
+  setFilesToUpload:  (files: File[]) => void;
+  clearFilesToUpload: () => void;
+
   // ── File Explorer ─────────────────────────────────────────────────────────
   currentView:    'files' | 'trash';
   currentFolderId: string | null;
@@ -130,8 +135,14 @@ export const useVaultStore = create<VaultStore>()(
     logout:   ()              => set({
       kek: null, userId: null, userEmail: null,
       uploads: new Map(), selectedIds: new Set(),
-      currentFolderId: null, folderBreadcrumbs: []
+      currentFolderId: null, folderBreadcrumbs: [],
+      filesToUpload: [],
     }),
+
+    // ── Pending Uploads ───────────────────────────────────────────────────────
+    filesToUpload: [],
+    setFilesToUpload: (files) => set({ filesToUpload: files }),
+    clearFilesToUpload: () => set({ filesToUpload: [] }),
 
     // ── Upload Queue ──────────────────────────────────────────────────────────
     addUpload: (upload) => set(s => {

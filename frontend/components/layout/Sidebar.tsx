@@ -18,8 +18,13 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 shrink-0 border-r border-white/[0.06] bg-black/20 flex flex-col h-full overflow-y-auto">
-      <div className="p-4 flex-1 space-y-1">
+    <aside className="panel-floating w-64 shrink-0 flex flex-col h-full mr-0 border-r-0">
+      {/* Subtle Noise Texture Overlay */}
+      <div 
+        className="absolute inset-0 opacity-[0.03] mix-blend-overlay pointer-events-none"
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")` }}
+      />
+      <div className="relative z-10 p-4 flex-1 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
@@ -48,7 +53,7 @@ export function Sidebar() {
         })}
       </div>
 
-      <div className="p-4">
+      <div className="relative z-10 p-4">
         <motion.div 
           whileHover={{ scale: 1.02 }}
           className="rounded-2xl border border-violet-500/30 bg-violet-500/15 p-5 shadow-neon-violet transition-all"

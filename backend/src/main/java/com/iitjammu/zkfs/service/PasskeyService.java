@@ -32,9 +32,21 @@ public class PasskeyService {
     private final JwtService jwtService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private record CacheEntry(String json, long timestamp) {}
+
     // In-memory challenge storage (cache). For production, use Redis.
-    private final Map<String, String> registrationStorage = new ConcurrentHashMap<>();
-    private final Map<String, String> assertionStorage = new ConcurrentHashMap<>();
+    private final Map<String, CacheEntry> registrationStorage = new ConcurrentHashMap<>();
+    private final Map<String, CacheEntry> assertionStorage = new ConcurrentHashMap<>();
+
+    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 300000) // 5 minutes
+    public void cleanupStaleChallenges() {
+        long now = System.currentTimeMillis();
+        long maxAgeMs = 5 * 60 * 1000; // 5 minutes
+        registrationStorage.entrySet().removeIf(entry -> (now - entry.getValue().timestamp()) > maxAgeMs);
+        assertionStorage.entrySet().removeIf(entry -> (now - entry.getValue().timestamp()) > maxAgeMs);
+        log.debug("Cleaned up stale passkey challenges. Pending registrations: {}, pending assertions: {}",
+                registrationStorage.size(), assertionStorage.size());
+    }
 
     // ── Registration ──────────────────────────────────────────────────────────
 
@@ -58,14 +70,15 @@ public class PasskeyService {
         // but PRF request is initiated purely client-side during registration. The server just needs to know if it was supported.
         
         String json = pkcco.toCredentialsCreateJson();
-        registrationStorage.put(email, pkcco.toJson()); // store the full server-side object for verification
+        registrationStorage.put(email, new CacheEntry(pkcco.toJson(), System.currentTimeMillis())); // store the full server-side object for verification
         return json;
     }
 
     @Transactional
     public void finishRegistration(String email, String responseJson, String passkeyWrappedKek, String deviceName) throws Exception {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
-        String pkccoJson = registrationStorage.remove(email);
+        CacheEntry entry = registrationStorage.remove(email);
+        String pkccoJson = entry != null ? entry.json() : null;
         if (pkccoJson == null) {
             throw new RuntimeException("No registration in progress");
         }
@@ -107,7 +120,7 @@ public class PasskeyService {
 
         String requestId = UUID.randomUUID().toString();
         String json = request.toCredentialsGetJson();
-        assertionStorage.put(requestId, request.toJson());
+        assertionStorage.put(requestId, new CacheEntry(request.toJson(), System.currentTimeMillis()));
         
         return Map.of(
             "requestId", requestId,
@@ -117,7 +130,8 @@ public class PasskeyService {
 
     @Transactional
     public LoginResult finishLogin(String requestId, String responseJson) throws Exception {
-        String requestJson = assertionStorage.remove(requestId);
+        CacheEntry entry = assertionStorage.remove(requestId);
+        String requestJson = entry != null ? entry.json() : null;
         if (requestJson == null) {
             throw new RuntimeException("No assertion in progress");
         }
@@ -161,7 +175,12 @@ public class PasskeyService {
     public java.util.List<com.iitjammu.zkfs.controller.PasskeyController.PasskeyDto> getUserPasskeys(String email) {
         User user = userRepository.findByEmail(email).orElseThrow(() -> new RuntimeException("User not found"));
         return passkeyCredentialRepository.findAllByUserId(user.getId()).stream()
-                .map(c -> new com.iitjammu.zkfs.controller.PasskeyController.PasskeyDto(c.getId(), c.getName(), c.getCreatedAt()))
+                .map(c -> new com.iitjammu.zkfs.controller.PasskeyController.PasskeyDto(
+                        c.getId(), 
+                        c.getName(), 
+                        c.getCreatedAt(), 
+                        !"unsupported".equals(c.getPasskeyWrappedKek())
+                ))
                 .collect(java.util.stream.Collectors.toList());
     }
 

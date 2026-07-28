@@ -82,6 +82,7 @@ function SharedDownloadModal({
               isSharedWithMe={true}
               sharedWrappedDek={wrappedDek}
               sharedIv={ivWrappedDek}
+              privateKey={privateKey}
             />
           )}
         </Dialog.Content>
@@ -105,6 +106,36 @@ export default function SharedWithMePage() {
     setError(null);
     try {
       const data = await filesApi.getSharedFiles();
+      
+      if (privateKey) {
+        try {
+          const { decryptWithPrivateKey } = await import('@/lib/crypto/asymmetric');
+          const { decryptFilenameFromStorage } = await import('@/lib/crypto/cipher');
+          
+          for (const share of data) {
+            try {
+              const dekBytes = await decryptWithPrivateKey(privateKey, share.wrappedDek);
+              const dek = await window.crypto.subtle.importKey(
+                'raw',
+                dekBytes as any,
+                { name: 'AES-GCM' },
+                true,
+                ['encrypt', 'decrypt']
+              );
+              share.decryptedFilename = await decryptFilenameFromStorage(share.filenameEncrypted, dek);
+            } catch (e) {
+              if (kek) {
+                try {
+                  share.decryptedFilename = await decryptFilenameFromStorage(share.filenameEncrypted, kek);
+                } catch (e2) {}
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Crypto error processing shared files", e);
+        }
+      }
+      
       setShares(data);
     } catch (err: any) {
       console.error('Failed to load shared files:', err);
@@ -173,7 +204,7 @@ export default function SharedWithMePage() {
             <tbody>
               <AnimatePresence>
                 {shares.map((share) => {
-                  const Icon = getMimeIcon(share.file.mimeType);
+                  const Icon = getMimeIcon(share.mimeType);
                   return (
                     <motion.tr
                       key={share.id}
@@ -189,7 +220,7 @@ export default function SharedWithMePage() {
                           </div>
                           <div className="min-w-0">
                             <div className="text-sm font-medium text-zinc-200 truncate">
-                              Encrypted File
+                              {share.decryptedFilename ?? 'Encrypted File'}
                             </div>
                             <div className="text-[10px] text-zinc-600 flex items-center gap-1.5 mt-0.5">
                               <Lock className="h-2.5 w-2.5" /> E2EE
@@ -198,10 +229,10 @@ export default function SharedWithMePage() {
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-xs text-zinc-400">{formatBytes(share.file.totalSize)}</span>
+                        <span className="text-xs text-zinc-400">{formatBytes(share.totalSize)}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-xs text-zinc-400">{share.sharedByEmail}</span>
+                        <span className="text-xs text-zinc-400">{share.ownerEmail}</span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button
@@ -224,12 +255,12 @@ export default function SharedWithMePage() {
 
       {downloadTarget && (
         <SharedDownloadModal
-          fileId={downloadTarget.file.id}
-          displayName={"Encrypted File"}
+          fileId={downloadTarget.id}
+          displayName={downloadTarget.decryptedFilename ?? "Encrypted File"}
           kek={kek}
           privateKey={privateKey}
           wrappedDek={downloadTarget.wrappedDek}
-          ivWrappedDek={downloadTarget.file.ivWrappedDek}
+          ivWrappedDek={downloadTarget.ivWrappedDek}
           onClose={() => setDownloadTarget(null)}
         />
       )}

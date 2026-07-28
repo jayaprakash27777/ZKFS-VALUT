@@ -56,7 +56,7 @@ export const authApi = {
    * Anti-enumeration: unknown emails get a fake deterministic salt.
    */
   async getSalt(email: string): Promise<SaltResponse> {
-    const { data } = await apiClient.get<SaltResponse>('/v1/auth/salt', {
+    const { data } = await apiClient.get<SaltResponse>('v1/auth/salt', {
       params: { email },
     });
     return data;
@@ -68,7 +68,7 @@ export const authApi = {
    * Server stores bcrypt(authHash).
    */
   async register(request: RegisterRequest): Promise<AuthResponse> {
-    const { data } = await apiClient.post<AuthResponse>('/v1/auth/register', request);
+    const { data } = await apiClient.post<AuthResponse>('v1/auth/register', request);
     tokenStorage.setTokens(data.accessToken, data.refreshToken);
     return data;
   },
@@ -79,7 +79,7 @@ export const authApi = {
    * Server runs bcrypt.matches(authHash, storedBcryptHash).
    */
   async login(request: LoginRequest): Promise<AuthResponse> {
-    const { data } = await apiClient.post<AuthResponse>('/v1/auth/login', request);
+    const { data } = await apiClient.post<AuthResponse>('v1/auth/login', request);
     tokenStorage.setTokens(data.accessToken, data.refreshToken);
     return data;
   },
@@ -88,7 +88,7 @@ export const authApi = {
    * Update the user's RSA keypair.
    */
   async updateKeys(publicKey: string, encPrivateKey: string): Promise<void> {
-    await apiClient.put('/v1/auth/keys', {
+    await apiClient.put('v1/auth/keys', {
       publicKey,
       encPrivateKey
     });
@@ -99,7 +99,7 @@ export const authApi = {
    */
   async refresh(): Promise<AuthResponse> {
     const refreshToken = tokenStorage.getRefreshToken();
-    const { data } = await apiClient.post<AuthResponse>('/v1/auth/refresh', { refreshToken });
+    const { data } = await apiClient.post<AuthResponse>('v1/auth/refresh', { refreshToken });
     tokenStorage.setTokens(data.accessToken, data.refreshToken);
     return data;
   },
@@ -115,12 +115,12 @@ export const authApi = {
   // ── Passkey / WebAuthn ──────────────────────────────────────────────────
 
   async getPasskeyRegisterOptions() {
-    const { data } = await apiClient.get<any>('/v1/auth/passkey/register/options');
+    const { data } = await apiClient.get<any>('v1/auth/passkey/register/options');
     return data;
   },
 
   async registerPasskey(responseJson: string, passkeyWrappedKek: string, deviceName: string) {
-    const { data } = await apiClient.post('/v1/auth/passkey/register', {
+    const { data } = await apiClient.post('v1/auth/passkey/register', {
       responseJson,
       passkeyWrappedKek,
       deviceName,
@@ -130,12 +130,12 @@ export const authApi = {
 
   async getPasskeyLoginOptions(email?: string) {
     const params = email ? { email } : {};
-    const { data } = await apiClient.get<any>('/v1/auth/passkey/login/options', { params });
+    const { data } = await apiClient.get<any>('v1/auth/passkey/login/options', { params });
     return data; // { requestId, options }
   },
 
   async loginPasskey(requestId: string, responseJson: string): Promise<any> {
-    const { data } = await apiClient.post<any>('/v1/auth/passkey/login', {
+    const { data } = await apiClient.post<any>('v1/auth/passkey/login', {
       requestId,
       responseJson,
     });
@@ -145,18 +145,18 @@ export const authApi = {
   },
 
   async updateRecoveryKey(recoveryWrappedKek: string, recoveryIv: string): Promise<void> {
-    await apiClient.put('/v1/auth/recovery-key', {
+    await apiClient.put('v1/auth/recovery-key', {
       recoveryWrappedKek,
       recoveryIv,
     });
   },
 
-  async getRegisteredPasskeys(): Promise<{id: string, name: string, createdAt: string}[]> {
-    const { data } = await apiClient.get('/v1/auth/passkey/list');
+  async getRegisteredPasskeys(): Promise<{id: string, name: string, createdAt: string, isEncryptionReady: boolean}[]> {
+    const { data } = await apiClient.get('v1/auth/passkey/list');
     return data;
   },
 
   async deletePasskey(id: string): Promise<void> {
-    await apiClient.delete(`/v1/auth/passkey/${id}`);
+    await apiClient.delete(`v1/auth/passkey/${id}`);
   }
 };

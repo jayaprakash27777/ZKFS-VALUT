@@ -69,5 +69,5 @@ public class PasskeyController {
 
     public record RegisterRequest(String responseJson, String passkeyWrappedKek, String deviceName) {}
     public record LoginRequest(String requestId, String responseJson) {}
-    public record PasskeyDto(java.util.UUID id, String name, java.time.OffsetDateTime createdAt) {}
+    public record PasskeyDto(java.util.UUID id, String name, java.time.OffsetDateTime createdAt, boolean isEncryptionReady) {}
 }

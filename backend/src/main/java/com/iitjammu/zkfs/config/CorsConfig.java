@@ -88,7 +88,7 @@ public class CorsConfig {
         config.setMaxAge(3600L); // 1 hour
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/v1/**", config);  // Only API routes
+        source.registerCorsConfiguration("/**", config);  // Apply everywhere
         return source;
     }
 }

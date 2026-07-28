@@ -81,11 +81,12 @@ export interface UploaderState {
 }
 
 export interface UploadOptions {
-  /** File to upload */
   file:        File;
-  /** User's Key Encryption Key (from useAuth) */
+  /** Master Key Encryption Key */
   kek:         CryptoKey;
-  /** Chunk size in bytes (default 5 MiB) */
+  /** Optional custom file password */
+  filePassword?: string;
+  /** Optional chunk size, defaults to 4MB */
   chunkSize?:  number;
   /** Called on every progress update */
   onProgress?: (progress: number, state: UploaderState) => void;
@@ -104,6 +105,8 @@ interface InitiateUploadRequest {
   totalSize:         number;
   wrappedDek:        string;
   ivWrappedDek:      string;
+  isPasswordProtected?: boolean;
+  passwordSalt?:     string;
 }
 
 interface InitiateUploadResponse {
@@ -276,6 +279,7 @@ export function useUploader() {
     const {
       file,
       kek,
+      filePassword,
       chunkSize  = DEFAULT_CHUNK_SIZE,
       onProgress,
       onComplete,
@@ -296,10 +300,21 @@ export function useUploader() {
       const estimatedTotalBytes = file.size + totalChunks * (12 + 16);
 
       // ── STEP 2: Generate & wrap DEK ──────────────────────────────────────
-      const { dek, wrappedDEK } = await generateAndWrapDEK(kek);
+      let targetKek = kek;
+      let passwordSalt: string | undefined = undefined;
+
+      if (filePassword) {
+        const cryptoLib = await import('@/lib/crypto/password');
+        const saltBytes = window.crypto.getRandomValues(new Uint8Array(16));
+        passwordSalt = Array.from(saltBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+        targetKek = await cryptoLib.deriveFileKek(filePassword, passwordSalt);
+      }
+
+      const { dek, wrappedDEK } = await generateAndWrapDEK(targetKek);
 
       // ── STEP 3: Encrypt filename (combined [IV||ciphertext] wire format) ────
-      const filenameEncrypted = await encryptFilenameForStorage(file.name, kek);
+      // Filename is encrypted with DEK for sharing support, unless password protected (which uses KEK)
+      const filenameEncrypted = await encryptFilenameForStorage(file.name, filePassword ? kek : dek);
 
       // ── STEP 4: Initiate upload session on server ────────────────────────
       checkAborted(signal);
@@ -311,6 +326,8 @@ export function useUploader() {
         totalSize:   file.size,
         wrappedDek:  wrappedDEK.wrappedDekB64,
         ivWrappedDek: wrappedDEK.ivB64,
+        isPasswordProtected: !!filePassword,
+        passwordSalt: passwordSalt,
       };
 
       const { data: initiateResponse } =

@@ -3,13 +3,20 @@
  */
 
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, Outfit } from 'next/font/google';
 import './globals.css';
+import { GlobalErrorBoundary } from '@/components/ui/GlobalErrorBoundary';
 
 const inter = Inter({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-inter',
+});
+
+const outfit = Outfit({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-outfit',
 });
 
 export const metadata: Metadata = {
@@ -36,9 +43,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="min-h-screen bg-slate-950 text-white antialiased">
-        {children}
+    <html lang="en" className={`${inter.variable} ${outfit.variable}`}>
+      <body className="min-h-screen bg-[#050505] text-white antialiased">
+        <GlobalErrorBoundary>
+          {children}
+        </GlobalErrorBoundary>
       </body>
     </html>
   );

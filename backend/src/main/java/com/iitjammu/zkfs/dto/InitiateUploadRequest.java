@@ -47,6 +47,10 @@ public record InitiateUploadRequest(
         @Size(min = 16, max = 24, message = "ivWrappedDek must be a Base64-encoded 12-byte IV")
         String ivWrappedDek,
         
-        java.util.UUID folderId
+        java.util.UUID folderId,
+
+        boolean isPasswordProtected,
+
+        String passwordSalt
 
 ) {}

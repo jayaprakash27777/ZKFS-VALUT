@@ -21,10 +21,10 @@ import java.util.UUID;
 public interface FileMetadataRepository extends JpaRepository<FileMetadata, UUID> {
 
     /** Paginated list of active files belonging to a user in the root folder. */
-    Page<FileMetadata> findByUserIdAndFolderIsNullAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userId, Pageable pageable);
+    Page<FileMetadata> findByUserIdAndFolderIsNullAndDeletedAtIsNullAndUploadStatusOrderByCreatedAtDesc(UUID userId, UploadStatus status, Pageable pageable);
 
     /** Paginated list of active files belonging to a user in a specific folder. */
-    Page<FileMetadata> findByUserIdAndFolder_IdAndDeletedAtIsNullOrderByCreatedAtDesc(UUID userId, UUID folderId, Pageable pageable);
+    Page<FileMetadata> findByUserIdAndFolder_IdAndDeletedAtIsNullAndUploadStatusOrderByCreatedAtDesc(UUID userId, UUID folderId, UploadStatus status, Pageable pageable);
 
     /** All files in a specific folder (for recursive deletion). */
     List<FileMetadata> findAllByFolder_Id(UUID folderId);
@@ -34,6 +34,9 @@ public interface FileMetadataRepository extends JpaRepository<FileMetadata, UUID
 
     /** Find a specific active file ensuring it belongs to the authenticated user. */
     Optional<FileMetadata> findByIdAndUserIdAndDeletedAtIsNull(UUID fileId, UUID userId);
+
+    /** Find a specific active file. */
+    Optional<FileMetadata> findByIdAndDeletedAtIsNull(UUID fileId);
 
     /** Find a specific soft-deleted file. */
     Optional<FileMetadata> findByIdAndUserIdAndDeletedAtIsNotNull(UUID fileId, UUID userId);

@@ -30,12 +30,12 @@ public interface FileShareRepository extends JpaRepository<FileShare, UUID> {
      */
     @Query("""
         SELECT fs FROM FileShare fs
-        JOIN fs.fileMetadata fm
-        JOIN fm.user u
-        WHERE u.email = :email
+        LEFT JOIN fs.fileMetadata fm
+        LEFT JOIN fs.folder f
+        WHERE (fm.userId = :ownerId OR f.userId = :ownerId)
         ORDER BY fs.createdAt DESC
     """)
-    List<FileShare> findAllByOwnerEmail(@Param("email") String email);
+    List<FileShare> findAllByOwnerId(@Param("ownerId") UUID ownerId);
 
     /**
      * Find a specific share by token AND verify it belongs to the given owner.
@@ -43,13 +43,13 @@ public interface FileShareRepository extends JpaRepository<FileShare, UUID> {
      */
     @Query("""
         SELECT fs FROM FileShare fs
-        JOIN fs.fileMetadata fm
-        JOIN fm.user u
-        WHERE fs.shareToken = :token AND u.email = :email
+        LEFT JOIN fs.fileMetadata fm
+        LEFT JOIN fs.folder f
+        WHERE fs.shareToken = :token AND (fm.userId = :ownerId OR f.userId = :ownerId)
     """)
-    Optional<FileShare> findByTokenAndOwnerEmail(
+    Optional<FileShare> findByTokenAndOwnerId(
             @Param("token") UUID token,
-            @Param("email") String email);
+            @Param("ownerId") UUID ownerId);
 
     /**
      * Atomically increment download count for a share.

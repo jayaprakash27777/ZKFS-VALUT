@@ -218,6 +218,11 @@ export function PreviewModal({ fileId, kek }: { fileId: string; kek: CryptoKey |
         return;
       }
 
+      if (meta.isPasswordProtected) {
+        setPreviewState({ phase: 'error', message: 'Previewing password-protected files is not currently supported. Please use "Decrypt & Download" instead.' });
+        return;
+      }
+
       // 2. Unwrap DEK into worker memory
       const wrappedDekBuf = base64ToUint8(meta.wrappedDek).buffer as any;
       const ivBuf         = base64ToUint8(meta.ivWrappedDek).buffer as any;

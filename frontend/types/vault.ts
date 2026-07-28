@@ -19,6 +19,9 @@ export interface VaultFile {
   uploadStatus:      UploadStatus;
   createdAt:         string;   // ISO-8601
   updatedAt:         string;
+  folderId:          string | null;
+  isPasswordProtected: boolean;
+  passwordSalt?:     string | null;
 
   // Client-side decrypted fields (populated lazily by the filename cache)
   filename?:         string;
@@ -58,6 +61,7 @@ export interface PendingUpload {
   fileSize:         number;
   totalChunks:      number;
   phase:            UploadPhase;
+  customPassword?:  string; // Optional file-specific password
 
   /**
    * The actual File object — kept in memory only during upload.

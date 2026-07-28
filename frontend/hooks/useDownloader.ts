@@ -119,6 +119,7 @@ export interface DownloadOptions {
   sharedWrappedDek?: string;
   sharedIv?: string;
   privateKey?: CryptoKey | null;
+  customPassword?: string;
 }
 
 /** Shape returned by GET /v1/files/{fileId} */
@@ -131,6 +132,8 @@ interface FileMetadataResponse {
   wrappedDek:        string;
   ivWrappedDek:      string;
   uploadStatus:      string;
+  isPasswordProtected: boolean;
+  passwordSalt?:     string;
 }
 
 /** Shape returned by GET /v1/files/{fileId}/chunks — one element per chunk */
@@ -317,7 +320,7 @@ export function useDownloader() {
   }, []);
 
   const download = useCallback(async (opts: DownloadOptions): Promise<void> => {
-    const { fileId, kek, onProgress, onComplete, onError, offline = false, isSharedWithMe, sharedWrappedDek, privateKey } = opts;
+    const { fileId, kek, onProgress, onComplete, onError, offline = false, isSharedWithMe, sharedWrappedDek, privateKey, customPassword } = opts;
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -360,7 +363,19 @@ export function useDownloader() {
           ['decrypt']
         );
       } else {
-        dek = await unwrapDEKForDownload(meta.wrappedDek, meta.ivWrappedDek, kek);
+        if (meta.isPasswordProtected) {
+          if (!customPassword) {
+            throw new Error('Password required to decrypt this file');
+          }
+          if (!meta.passwordSalt) {
+             throw new Error('Missing password salt for password protected file');
+          }
+          const cryptoLib = await import('@/lib/crypto/password');
+          const fileKek = await cryptoLib.deriveFileKek(customPassword, meta.passwordSalt);
+          dek = await unwrapDEKForDownload(meta.wrappedDek, meta.ivWrappedDek, fileKek);
+        } else {
+          dek = await unwrapDEKForDownload(meta.wrappedDek, meta.ivWrappedDek, kek);
+        }
       }
 
       // ────────────────────────────────────────────────────────────────────────

@@ -15,29 +15,29 @@ export type Folder = z.infer<typeof folderSchema>;
 export const foldersApi = {
   listFolders: async (parentId?: string, deleted: boolean = false): Promise<Folder[]> => {
     const params = { ...(parentId && { parentId }), deleted };
-    const { data } = await apiClient.get<Folder[]>('/v1/folders', { params });
+    const { data } = await apiClient.get<Folder[]>('v1/folders', { params });
     return data;
   },
 
   createFolder: async (payload: { nameEncrypted: string; iv: string; parentId?: string | null }): Promise<Folder> => {
-    const { data } = await apiClient.post<Folder>('/v1/folders', payload);
+    const { data } = await apiClient.post<Folder>('v1/folders', payload);
     return data;
   },
 
   getFolder: async (id: string): Promise<Folder> => {
-    const { data } = await apiClient.get<Folder>(`/v1/folders/${id}`);
+    const { data } = await apiClient.get<Folder>(`v1/folders/${id}`);
     return data;
   },
 
   deleteFolder: async (id: string): Promise<void> => {
-    await apiClient.delete(`/v1/folders/${id}`);
+    await apiClient.delete(`v1/folders/${id}`);
   },
 
   restoreFolder: async (id: string): Promise<void> => {
-    await apiClient.post(`/v1/folders/${id}/restore`);
+    await apiClient.post(`v1/folders/${id}/restore`);
   },
 
   hardDeleteFolder: async (id: string): Promise<void> => {
-    await apiClient.delete(`/v1/folders/${id}/force`);
+    await apiClient.delete(`v1/folders/${id}/force`);
   }
 };

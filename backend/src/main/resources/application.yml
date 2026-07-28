@@ -123,7 +123,7 @@ spring:
     username: sa
     password:
   flyway:
-    locations: classpath:db/migration,classpath:db/testdata
+    enabled: false
   jpa:
     hibernate:
       ddl-auto: create-drop

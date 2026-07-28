@@ -47,7 +47,13 @@ public record FileMetadataDto(
         OffsetDateTime updatedAt,
         
         @JsonProperty("folderId")
-        UUID folderId
+        UUID folderId,
+
+        @JsonProperty("isPasswordProtected")
+        boolean isPasswordProtected,
+
+        @JsonProperty("passwordSalt")
+        String passwordSalt
 
 ) {
     /** Maps a {@link com.iitjammu.zkfs.domain.FileMetadata} entity to this DTO. */
@@ -64,7 +70,9 @@ public record FileMetadataDto(
                 entity.getUploadStatus().name(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt(),
-                entity.getFolder() != null ? entity.getFolder().getId() : null
+                entity.getFolder() != null ? entity.getFolder().getId() : null,
+                entity.isPasswordProtected(),
+                entity.getPasswordSalt()
         );
     }
 }

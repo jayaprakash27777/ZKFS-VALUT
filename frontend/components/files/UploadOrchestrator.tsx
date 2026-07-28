@@ -52,10 +52,20 @@ async function runUpload(
     // ── Step 1: Generate DEK + wrap with KEK ───────────────────────────
     get().setUploadPhase(localId, 'deriving-key');
 
-    const { dek, wrappedDEK } = await generateAndWrapDEK(kek);
+    let targetKek = kek;
+    let passwordSalt: string | undefined = undefined;
+
+    if (upload.customPassword) {
+      const cryptoLib = await import('@/lib/crypto/password');
+      const saltBytes = window.crypto.getRandomValues(new Uint8Array(16));
+      passwordSalt = Array.from(saltBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+      targetKek = await cryptoLib.deriveFileKek(upload.customPassword, passwordSalt);
+    }
+
+    const { dek, wrappedDEK } = await generateAndWrapDEK(targetKek);
 
     // ── Step 2: Encrypt filename and thumbnail ─────────────────────────
-    const filenameEncrypted = await encryptFilenameForStorage(file.name, kek);
+    const filenameEncrypted = await encryptFilenameForStorage(file.name, kek); // Filename remains encrypted with Master KEK
     const thumbnailDataUri = await generateImageThumbnail(file);
     let thumbnailEncrypted = undefined;
     if (thumbnailDataUri) {
@@ -77,6 +87,8 @@ async function runUpload(
       wrappedDek:   wrappedDEK.wrappedDekB64,
       ivWrappedDek: wrappedDEK.ivB64,
       folderId:     get().currentFolderId || undefined,
+      isPasswordProtected: !!upload.customPassword,
+      passwordSalt: passwordSalt,
     });
 
     const fileId = initiated.fileId;   // backend returns "fileId" not "id"

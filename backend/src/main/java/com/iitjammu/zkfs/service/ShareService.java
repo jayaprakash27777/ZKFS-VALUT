@@ -76,6 +76,10 @@ public class ShareService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Target user has not setup sharing keys");
         }
 
+        if (userShareRepository.existsByFileIdAndSharedWithId(fileId, target.getId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "File is already shared with this user");
+        }
+
         com.iitjammu.zkfs.domain.UserShare userShare = com.iitjammu.zkfs.domain.UserShare.builder()
                 .file(file)
                 .owner(owner)
@@ -91,7 +95,9 @@ public class ShareService {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        return userShareRepository.findBySharedWithId(user.getId()).stream().map(share -> {
+        return userShareRepository.findBySharedWithId(user.getId()).stream()
+                .filter(share -> share.getFile().getDeletedAt() == null)
+                .map(share -> {
             FileMetadata file = share.getFile();
             return new com.iitjammu.zkfs.dto.SharedFileResponse(
                     file.getId(),
@@ -218,7 +224,9 @@ public class ShareService {
      */
     @Transactional(readOnly = true)
     public List<ShareMetadataResponse> listMyShares(String email) {
-        return shareRepository.findAllByOwnerEmail(email).stream()
+        com.iitjammu.zkfs.domain.User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        return shareRepository.findAllByOwnerId(user.getId()).stream()
                 .map(share -> new ShareMetadataResponse(
                         share.getShareToken(),
                         share.getFolder() != null,
@@ -251,6 +259,11 @@ public class ShareService {
     public FileChunk resolveShareChunk(UUID token, int chunkIndex) {
         FileShare share = resolveActiveShare(token);
         FileMetadata file = share.getFileMetadata();
+
+        if (file == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Cannot download chunk directly from a folder share");
+        }
 
         if (chunkIndex < 0 || chunkIndex >= file.getTotalChunks()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -304,8 +317,10 @@ public class ShareService {
      */
     @Transactional
     public void revokeShare(UUID token, String email) {
+        com.iitjammu.zkfs.domain.User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
         FileShare share = shareRepository
-                .findByTokenAndOwnerEmail(token, email)
+                .findByTokenAndOwnerId(token, user.getId())
                 .orElseThrow(() -> new FileNotFoundException(
                         "Share not found or you do not own it: " + token));
         shareRepository.delete(share);

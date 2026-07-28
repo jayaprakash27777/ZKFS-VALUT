@@ -252,9 +252,7 @@ export function UploadHUD() {
           animate={{ opacity: 1, y: 0,  scale: 1    }}
           exit={{   opacity: 0, y: 24,  scale: 0.97 }}
           transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-          className="fixed bottom-5 right-5 z-50 w-80 rounded-2xl
-                     bg-zinc-900/95 border border-white/8 shadow-2xl shadow-black/60
-                     backdrop-blur-xl overflow-hidden"
+          className="fixed bottom-5 right-5 z-50 w-80 panel-floating !m-0"
           style={{ maxHeight: '85vh' }}
         >
           {/* HUD header */}

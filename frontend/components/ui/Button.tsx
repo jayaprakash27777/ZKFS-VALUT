@@ -20,10 +20,9 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
 
 const variantStyles: Record<NonNullable<ButtonProps['variant']>, string> = {
   primary:
-    'bg-violet-600 text-white hover:bg-violet-700 active:bg-violet-800 ' +
-    'shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40',
+    'btn-gloss',
   secondary:
-    'bg-white/10 text-white border border-white/20 hover:bg-white/20 backdrop-blur-sm',
+    'btn-2d-glass',
   ghost:
     'text-slate-300 hover:text-white hover:bg-white/10',
   danger:

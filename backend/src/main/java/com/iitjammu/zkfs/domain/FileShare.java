@@ -112,12 +112,18 @@ public class FileShare {
 
     // ── Domain logic ─────────────────────────────────────────────────────────
 
-    /** Returns true if this share is still valid (not expired, not exhausted). */
+    /** Returns true if this share is still valid (not expired, not exhausted, and file/folder not deleted). */
     public boolean isAccessible() {
         if (expiresAt != null && OffsetDateTime.now().isAfter(expiresAt)) {
             return false;
         }
         if (maxDownloads != null && downloadCount >= maxDownloads) {
+            return false;
+        }
+        if (fileMetadata != null && fileMetadata.getDeletedAt() != null) {
+            return false;
+        }
+        if (folder != null && folder.getDeletedAt() != null) {
             return false;
         }
         return true;

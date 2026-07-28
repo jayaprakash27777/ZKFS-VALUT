@@ -17,9 +17,5 @@ public record ChunkUploadResponse(
         int chunkIndex,
 
         @JsonProperty("chunkSize")
-        long chunkSize,
-
-        @JsonProperty("s3ObjectKey")
-        String s3ObjectKey
-
+        long chunkSize
 ) {}

@@ -67,6 +67,7 @@ public class FileStorageService {
     private final FileMetadataRepository fileMetadataRepository;
     private final FileChunkRepository    fileChunkRepository;
     private final com.iitjammu.zkfs.repository.FolderRepository       folderRepository;
+    private final com.iitjammu.zkfs.repository.UserShareRepository    userShareRepository;
     private final UserRepository         userRepository;
     private final MinioClient            minioClient;
     private final MinioProperties        minioProperties;
@@ -105,6 +106,8 @@ public class FileStorageService {
         FileMetadata file = FileMetadata.builder()
                 .user(user)
                 .folder(folder)
+                .isPasswordProtected(request.isPasswordProtected())
+                .passwordSalt(request.passwordSalt())
                 .filenameEncrypted(request.filenameEncrypted())
                 .mimeType(request.mimeType())
                 .thumbnailEncrypted(request.thumbnailEncrypted())
@@ -175,6 +178,10 @@ public class FileStorageService {
             throw new IllegalArgumentException("Chunk %d is empty".formatted(chunkIndex));
         }
 
+        if (fileMetadata.getUploadStatus() != FileMetadata.UploadStatus.UPLOADING) {
+            throw new IllegalStateException("Cannot upload chunk to a file that is not in UPLOADING state");
+        }
+
         // ── 2. Build MinIO object key ─────────────────────────────────────────
         String objectKey = buildObjectKey(fileId, chunkIndex);
 
@@ -227,8 +234,7 @@ public class FileStorageService {
                 saved.getId(),
                 fileId,
                 chunkIndex,
-                chunkSize,
-                objectKey
+                chunkSize
         );
     }
 
@@ -285,11 +291,11 @@ public class FileStorageService {
         
         if (folderId == null) {
             return fileMetadataRepository
-                    .findByUserIdAndFolderIsNullAndDeletedAtIsNullOrderByCreatedAtDesc(userId, pageable)
+                    .findByUserIdAndFolderIsNullAndDeletedAtIsNullAndUploadStatusOrderByCreatedAtDesc(userId, FileMetadata.UploadStatus.COMPLETE, pageable)
                     .map(FileMetadataDto::from);
         } else {
             return fileMetadataRepository
-                    .findByUserIdAndFolder_IdAndDeletedAtIsNullOrderByCreatedAtDesc(userId, folderId, pageable)
+                    .findByUserIdAndFolder_IdAndDeletedAtIsNullAndUploadStatusOrderByCreatedAtDesc(userId, folderId, FileMetadata.UploadStatus.COMPLETE, pageable)
                     .map(FileMetadataDto::from);
         }
     }
@@ -299,10 +305,16 @@ public class FileStorageService {
     @Transactional(readOnly = true)
     public FileMetadataDto getFile(UUID fileId, String email) {
         UUID userId = resolveUser(email).getId();
-        return fileMetadataRepository
-                .findByIdAndUserIdAndDeletedAtIsNull(fileId, userId)
-                .map(FileMetadataDto::from)
+        FileMetadata file = fileMetadataRepository.findByIdAndDeletedAtIsNull(fileId)
                 .orElseThrow(() -> new FileNotFoundException(fileId));
+        
+        if (!file.getUser().getId().equals(userId)) {
+            if (!userShareRepository.existsByFileIdAndSharedWithId(fileId, userId)) {
+                throw new FileNotFoundException(fileId);
+            }
+        }
+        
+        return FileMetadataDto.from(file);
     }
 
     // ── Get Chunk Metadata (for download) ────────────────────────────────────

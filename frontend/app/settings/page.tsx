@@ -129,7 +129,22 @@ function PasskeySection() {
   }
 
   const handleRegister = async (useQR: boolean) => {
-    const defaultName = useQR ? "My Smartphone (QR)" : "My Device (TouchID/Hello)";
+    // Smart Device Naming
+    const ua = navigator.userAgent;
+    let browser = "Browser";
+    if (ua.includes("Chrome")) browser = "Chrome";
+    else if (ua.includes("Safari") && !ua.includes("Chrome")) browser = "Safari";
+    else if (ua.includes("Firefox")) browser = "Firefox";
+    else if (ua.includes("Edge")) browser = "Edge";
+    
+    let os = "Device";
+    if (ua.includes("Win")) os = "Windows";
+    else if (ua.includes("Mac")) os = "MacOS";
+    else if (ua.includes("Android")) os = "Android";
+    else if (ua.includes("like Mac")) os = "iOS";
+    
+    const smartName = `${browser} on ${os}`;
+    const defaultName = useQR ? "My Smartphone (QR)" : smartName;
     const deviceName = prompt("Enter a label for this passkey:", defaultName);
     if (!deviceName) return;
     const success = await registerPasskey(deviceName, useQR);
@@ -176,7 +191,7 @@ function PasskeySection() {
           <button
             onClick={() => handleRegister(true)}
             disabled={isRegistering}
-            className="btn-neon relative flex items-center gap-2 px-5 py-2.5 text-xs font-semibold transition-all duration-300 disabled:opacity-50 !bg-violet-600 hover:!bg-violet-500"
+            className="btn-gloss relative flex items-center gap-2 px-5 py-2.5 text-xs font-semibold transition-all duration-300 disabled:opacity-50"
           >
             <QrCode className="h-4 w-4 text-white" />
             <span>{isRegistering ? 'Waiting for Scan...' : 'Generate with QR Code (Smartphone)'}</span>
@@ -198,18 +213,29 @@ function PasskeySection() {
             <div className="space-y-2">
               {passkeys.map(pk => (
                 <div key={pk.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-violet-500/20 flex items-center justify-center">
+                  <div className="flex items-center gap-3 flex-1">
+                    <div className="h-8 w-8 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0">
                       <Key className="h-4 w-4 text-violet-400" />
                     </div>
                     <div>
-                      <div className="text-sm text-zinc-200 font-medium">{pk.name}</div>
-                      <div className="text-[11px] text-zinc-500">Added on {new Date(pk.createdAt).toLocaleDateString()}</div>
+                      <div className="text-sm text-zinc-200 font-medium flex items-center gap-2">
+                        {pk.name}
+                        {pk.isEncryptionReady ? (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            Encryption Ready
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20" title="This passkey does not support WebAuthn PRF. Vault unlocks will still require a password.">
+                            Login Only
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-zinc-500 mt-0.5">Added on {new Date(pk.createdAt).toLocaleDateString()}</div>
                     </div>
                   </div>
                   <button
                     onClick={() => handleDelete(pk.id)}
-                    className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors"
+                    className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors shrink-0 ml-2"
                   >
                     Remove
                   </button>

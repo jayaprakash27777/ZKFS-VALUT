@@ -1,5 +1,5 @@
-import { useState, useCallback } from 'react';
-import { startRegistration, startAuthentication, browserSupportsWebAuthn } from '@simplewebauthn/browser';
+import { useState, useCallback, useEffect } from 'react';
+import { startRegistration, startAuthentication, browserSupportsWebAuthn, browserSupportsWebAuthnAutofill } from '@simplewebauthn/browser';
 import { authApi } from '@/lib/api/auth';
 import { getPrfSaltBytes, wrapKekWithPrf, unwrapKekWithPrf } from '@/lib/crypto/passkeys';
 import { useVaultStore } from '@/store/useVaultStore';
@@ -16,6 +16,11 @@ export function usePasskeys() {
   const setPrivateKey = useVaultStore((s) => s.setPrivateKey);
   
   const isSupported = browserSupportsWebAuthn();
+  const [isAutofillSupported, setIsAutofillSupported] = useState(false);
+
+  useEffect(() => {
+    browserSupportsWebAuthnAutofill().then(setIsAutofillSupported).catch(() => setIsAutofillSupported(false));
+  }, []);
 
   const registerPasskey = useCallback(async (deviceName: string, useQR: boolean = false) => {
     if (!kek) {
@@ -28,7 +33,8 @@ export function usePasskeys() {
     try {
       // 1. Get options from server
       const optionsRes = await authApi.getPasskeyRegisterOptions();
-      const options = typeof optionsRes === 'string' ? JSON.parse(optionsRes) : optionsRes;
+      const rawOptions = typeof optionsRes === 'string' ? JSON.parse(optionsRes) : optionsRes;
+      const options = rawOptions.publicKey ? rawOptions.publicKey : rawOptions;
       
       const prfSalt = await getPrfSaltBytes();
 
@@ -79,7 +85,8 @@ export function usePasskeys() {
     try {
       // 1. Get login options and requestId
       const res = await authApi.getPasskeyLoginOptions(email);
-      const options = typeof res.options === 'string' ? JSON.parse(res.options) : res.options;
+      const rawOptions = typeof res.options === 'string' ? JSON.parse(res.options) : res.options;
+      const options = rawOptions.publicKey ? rawOptions.publicKey : rawOptions;
       const requestId = res.requestId;
       
       const prfSalt = await getPrfSaltBytes();
@@ -153,6 +160,7 @@ export function usePasskeys() {
 
   return {
     isSupported,
+    isAutofillSupported,
     isRegistering,
     isAuthenticating,
     error,

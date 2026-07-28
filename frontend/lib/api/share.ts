@@ -70,7 +70,7 @@ export const shareApi = {
    * Requires authentication (JWT in apiClient interceptor).
    */
   async createShare(req: CreateShareRequest): Promise<CreateShareResponse> {
-    const res = await apiClient.post<CreateShareResponse>('/v1/share', req);
+    const res = await apiClient.post<CreateShareResponse>('v1/share', req);
     return res.data;
   },
 
@@ -78,7 +78,7 @@ export const shareApi = {
    * Lists all shares created by the authenticated user.
    */
   async listMyShares(): Promise<ShareMetadata[]> {
-    const res = await apiClient.get<ShareMetadata[]>('/v1/share');
+    const res = await apiClient.get<ShareMetadata[]>('v1/share');
     return res.data;
   },
 
@@ -99,7 +99,7 @@ export const shareApi = {
    * Revokes (deletes) a share by token. Owner JWT required.
    */
   async revokeShare(token: string): Promise<void> {
-    await apiClient.delete(`/v1/share/${token}`);
+    await apiClient.delete(`v1/share/${token}`);
   },
 
   /**

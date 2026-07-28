@@ -11,5 +11,6 @@ import java.util.UUID;
 public interface UserShareRepository extends JpaRepository<UserShare, UUID> {
     List<UserShare> findBySharedWithId(UUID sharedWithId);
     List<UserShare> findByFileId(UUID fileId);
+    boolean existsByFileIdAndSharedWithId(UUID fileId, UUID sharedWithId);
     void deleteByFileIdAndSharedWithId(UUID fileId, UUID sharedWithId);
 }

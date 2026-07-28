@@ -107,8 +107,7 @@ function ShareLinkCard({ url }: { url: string }) {
         <button
           onClick={copy}
           className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs
-                     font-medium transition-all duration-200
-                     bg-violet-600 hover:bg-violet-500 text-white"
+                     btn-gloss"
         >
           {copied
             ? <><Check className="h-3 w-3" /> Copied!</>
@@ -238,9 +237,8 @@ export function ShareModal({ open, onClose, targetId, displayName, isFolder = fa
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm" />
         <Dialog.Content
-          className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-                     w-full max-w-md rounded-2xl border border-white/10
-                     bg-zinc-900 shadow-2xl shadow-black/60 focus:outline-none overflow-hidden"
+          className="glass-3d fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+                     w-full max-w-md bg-zinc-900/90 focus:outline-none"
         >
           {/* Top accent stripe */}
           <div className="h-px w-full bg-gradient-to-r from-transparent via-violet-500/60 to-transparent" />
@@ -406,12 +404,7 @@ export function ShareModal({ open, onClose, targetId, displayName, isFolder = fa
                   <button
                     onClick={handleCreate}
                     disabled={isPending || password.length < 6}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl
-                               bg-gradient-to-r from-violet-600 to-violet-700
-                               hover:from-violet-500 hover:to-violet-600
-                               disabled:opacity-50 disabled:cursor-not-allowed
-                               text-white text-sm font-semibold
-                               shadow-lg shadow-violet-900/40 transition-all duration-200"
+                    className="btn-gloss w-full flex items-center justify-center gap-2 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isPending ? (
                       <><Loader2 className="h-4 w-4 animate-spin" /> Creating secure link…</>

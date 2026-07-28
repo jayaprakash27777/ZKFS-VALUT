@@ -36,6 +36,8 @@ interface DownloadPanelProps {
   onComplete?: (decryptedFileName: string) => void;
   /** Offline download toggle */
   offline?: boolean;
+  /** Whether the file is password protected */
+  isPasswordProtected?: boolean;
 }
 
 // ── Pipeline Step Definitions ──────────────────────────────────────────────
@@ -69,9 +71,10 @@ const PIPELINE_STEPS = [
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, onClose, isSharedWithMe, sharedWrappedDek, sharedIv, privateKey }: DownloadPanelProps & { onClose?: () => void, isSharedWithMe?: boolean, sharedWrappedDek?: string, sharedIv?: string, privateKey?: CryptoKey | null }) {
+export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, onClose, isSharedWithMe, sharedWrappedDek, sharedIv, privateKey, isPasswordProtected }: DownloadPanelProps & { onClose?: () => void, isSharedWithMe?: boolean, sharedWrappedDek?: string, sharedIv?: string, privateKey?: CryptoKey | null }) {
   const { state, download, cancel, reset } = useDownloader();
   const [downloadSpeed, setDownloadSpeed]  = useState<string>('—');
+  const [customPassword, setCustomPassword] = useState('');
   const lastBytesRef = useRef(0);
   const lastTimeRef  = useRef(Date.now());
 
@@ -98,29 +101,48 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
       sharedWrappedDek,
       sharedIv,
       privateKey,
-      onComplete: (fn) => onComplete?.(fn),
-    });
+      customPassword: customPassword.trim() || undefined,
+    }).then(() => {
+      onComplete?.(displayName || 'file');
+    }).catch(err => {});
   };
 
   // ── Idle state — show download button ─────────────────────────────────────
 
   if (state.status === 'idle') {
     return (
-      <button
-        onClick={handleDownload}
-        disabled={!kek}
-        className={clsx(
-          'flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl',
-          'transition-all duration-200',
-          kek
-            ? 'bg-violet-600 hover:bg-violet-700 text-white shadow-lg shadow-violet-500/20'
-            : 'bg-white/5 text-slate-500 cursor-not-allowed border border-white/10'
+      <div className="flex flex-col gap-3 w-full">
+        {isPasswordProtected && (
+          <div className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-2">
+            <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5" />
+              File Password Required
+            </label>
+            <input
+              type="password"
+              placeholder="Enter password..."
+              value={customPassword}
+              onChange={(e) => setCustomPassword(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-violet-500/50"
+            />
+          </div>
         )}
-        title={!kek ? 'Re-authenticate to download (session key required)' : undefined}
-      >
-        <Download className="h-4 w-4" />
-        {displayName ?? 'Download'} {offline && '(Offline .zkfs)'}
-      </button>
+        <button
+          onClick={handleDownload}
+          disabled={!kek || (isPasswordProtected && !customPassword.trim())}
+          className={clsx(
+            'flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-xl',
+            'transition-all duration-200 w-full',
+            kek && (!isPasswordProtected || customPassword.trim())
+              ? 'btn-gloss'
+              : 'bg-white/5 text-slate-500 cursor-not-allowed border border-white/10'
+          )}
+          title={!kek ? 'Re-authenticate to download (session key required)' : undefined}
+        >
+          <Download className="h-4 w-4" />
+          {displayName ?? 'Download'} {offline && '(Offline .zkfs)'}
+        </button>
+      </div>
     );
   }
 

@@ -188,7 +188,7 @@ export default function RegisterPage() {
   const passwordMismatch  = confirmPassword && confirmPassword !== password;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#050505] px-4 py-8 relative overflow-hidden">
+    <main className="min-h-screen bg-mesh flex items-center justify-center p-4 relative overflow-hidden">
       <BackgroundBlobs />
 
       <motion.div
@@ -342,7 +342,7 @@ export default function RegisterPage() {
                 <button
                   type="submit"
                   disabled={isPending || !!passwordMismatch}
-                  className="btn-neon w-full mt-6"
+                  className="btn-gloss w-full mt-6 py-3"
                 >
                   <span className="drop-shadow-md">Continue</span>
                   <ArrowRight className="h-4 w-4 drop-shadow-md" />
@@ -434,6 +434,6 @@ export default function RegisterPage() {
           </Link>
         </p>
       </motion.div>
-    </div>
+    </main>
   );
 }

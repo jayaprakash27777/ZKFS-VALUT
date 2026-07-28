@@ -28,6 +28,8 @@ export interface InitiateUploadRequest {
   wrappedDek:        string;  // Base64(AES-GCM-wrapped DEK)
   ivWrappedDek:      string;  // Base64(12-byte IV used to wrap DEK)
   folderId?:         string;  // Optional parent folder UUID
+  isPasswordProtected?: boolean;
+  passwordSalt?:     string;
 }
 
 /**
@@ -59,6 +61,8 @@ export interface FileMetadataResponse {
   createdAt:         string;
   updatedAt:         string;
   folderId:          string | null;
+  isPasswordProtected: boolean;
+  passwordSalt?:     string | null;
 }
 
 /**
@@ -69,7 +73,6 @@ export interface ChunkUploadResponse {
   fileId:      string;
   chunkIndex:  number;
   chunkSize:   number;
-  s3ObjectKey: string;
 }
 
 /**
@@ -102,7 +105,7 @@ export const filesApi = {
    * Backend: POST /v1/files/initiate
    */
   async initiateUpload(request: InitiateUploadRequest): Promise<InitiateUploadResponse> {
-    const { data } = await apiClient.post<InitiateUploadResponse>('/v1/files/initiate', request);
+    const { data } = await apiClient.post<InitiateUploadResponse>('v1/files/initiate', request);
     return data;
   },
 
@@ -132,7 +135,7 @@ export const filesApi = {
 
     // chunkIndex is in the URL path, NOT in the form data
     const { data } = await apiClient.post<ChunkUploadResponse>(
-      `/v1/files/${fileId}/chunk/${chunkIndex}`,
+      `v1/files/${fileId}/chunk/${chunkIndex}`,
       formData
       // Don't set Content-Type — let Axios set multipart/form-data with boundary
     );
@@ -147,7 +150,7 @@ export const filesApi = {
    */
   async completeUpload(fileId: string): Promise<FileMetadataResponse> {
     const { data } = await apiClient.post<FileMetadataResponse>(
-      `/v1/files/${fileId}/complete`
+      `v1/files/${fileId}/complete`
     );
     return data;
   },
@@ -158,7 +161,7 @@ export const filesApi = {
    * Backend: GET /v1/files?page=0&size=20
    */
   async listFiles(page = 0, size = 20, folderId?: string, deleted = false): Promise<PagedResponse<FileMetadataResponse>> {
-    const { data } = await apiClient.get<PagedResponse<FileMetadataResponse>>('/v1/files', {
+    const { data } = await apiClient.get<PagedResponse<FileMetadataResponse>>('v1/files', {
       params: { page, size, ...(folderId && { folderId }), deleted },
     });
     return data;
@@ -166,7 +169,7 @@ export const filesApi = {
 
   /** Get metadata for a single file. */
   async getFile(fileId: string): Promise<FileMetadataResponse> {
-    const { data } = await apiClient.get<FileMetadataResponse>(`/v1/files/${fileId}`);
+    const { data } = await apiClient.get<FileMetadataResponse>(`v1/files/${fileId}`);
     return data;
   },
 
@@ -177,7 +180,7 @@ export const filesApi = {
    * Returns: ChunkInfo[] ordered by chunkIndex ascending
    */
   async getChunks(fileId: string): Promise<ChunkMetadataResponse[]> {
-    const { data } = await apiClient.get<ChunkMetadataResponse[]>(`/v1/files/${fileId}/chunks`);
+    const { data } = await apiClient.get<ChunkMetadataResponse[]>(`v1/files/${fileId}/chunks`);
     return data;
   },
 
@@ -190,7 +193,7 @@ export const filesApi = {
    */
   async downloadChunkStream(fileId: string, chunkIndex: number): Promise<ArrayBuffer> {
     const { data } = await apiClient.get<ArrayBuffer>(
-      `/v1/files/${fileId}/chunk/${chunkIndex}/stream`,
+      `v1/files/${fileId}/chunk/${chunkIndex}/stream`,
       { responseType: 'arraybuffer' }
     );
     return data;
@@ -204,7 +207,7 @@ export const filesApi = {
    */
   async getChunkDownloadUrl(fileId: string, chunkIndex: number): Promise<string> {
     const { data } = await apiClient.get<{ url: string; fileId: string; chunkIndex: string }>(
-      `/v1/files/${fileId}/chunk/${chunkIndex}/url`
+      `v1/files/${fileId}/chunk/${chunkIndex}/url`
     );
     return data.url;
   },
@@ -216,29 +219,29 @@ export const filesApi = {
    * Response: 204 No Content
    */
   async deleteFile(fileId: string): Promise<void> {
-    await apiClient.delete(`/v1/files/${fileId}`);
+    await apiClient.delete(`v1/files/${fileId}`);
   },
 
   /**
    * Restore a soft-deleted file.
    */
   async restoreFile(fileId: string): Promise<void> {
-    await apiClient.post(`/v1/files/${fileId}/restore`);
+    await apiClient.post(`v1/files/${fileId}/restore`);
   },
 
   /**
    * Permanently delete a file.
    */
   async hardDeleteFile(fileId: string): Promise<void> {
-    await apiClient.delete(`/v1/files/${fileId}/force`);
+    await apiClient.delete(`v1/files/${fileId}/force`);
   },
 
   async shareFileWithUser(fileId: string, email: string, wrappedDek: string): Promise<void> {
-    await apiClient.post(`/v1/files/${fileId}/share/user`, { email, wrappedDek });
+    await apiClient.post(`v1/files/${fileId}/share/user`, { email, wrappedDek });
   },
 
   async getSharedFiles(): Promise<any[]> {
-    const { data } = await apiClient.get<any[]>('/v1/files/shared');
+    const { data } = await apiClient.get<any[]>('v1/files/shared');
     return data;
   }
 };

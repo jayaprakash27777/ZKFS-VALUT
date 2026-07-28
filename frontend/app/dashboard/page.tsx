@@ -135,37 +135,15 @@ function DashboardToolbar({
 export default function DashboardPage() {
   const [isCreateFolderModalOpen, setIsCreateFolderModalOpen] = React.useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const addUpload    = useVaultStore(s => s.addUpload);
+  const setFilesToUpload = useVaultStore(s => s.setFilesToUpload);
   const previewId    = useVaultStore(s => s.previewFileId);
   const kek          = useVaultStore(s => s.kek);
 
   const handleFileInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
-    files.forEach(file => {
-      const localId = crypto.randomUUID();
-      addUpload({
-        localId,
-        file,                        // ← actual File object for encryption
-        fileId:          null,
-        fileName:        file.name,
-        mimeType:        file.type,
-        fileSize:        file.size,
-        totalChunks:     Math.max(1, Math.ceil(file.size / (5 * 1024 * 1024))),
-        phase:           'queued',
-        currentChunk:    0,
-        overallProgress: 0,
-        encryptSpeedMBs: 0,
-        uploadSpeedMBs:  0,
-        etaSeconds:      null,
-        bytesProcessed:  0,
-        startedAt:       null,
-        paused:          false,
-        abortController: new AbortController(),
-        error:           null,
-      });
-    });
+    setFilesToUpload(files);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [addUpload]);
+  }, [setFilesToUpload]);
 
   const openFilePicker = () => fileInputRef.current?.click();
 

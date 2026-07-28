@@ -77,6 +77,60 @@
   .gradient-bg {
     background: radial-gradient(ellipse at top, #1e1b4b 0%, #09090b 60%);
   }
+  
+  /* Next-Gen 3D Panels & Gloss Effects */
+  .glass-3d {
+    @apply bg-black/40 backdrop-blur-3xl border border-white/[0.08] rounded-[2rem]
+           shadow-[inset_0_1px_1px_rgba(255,255,255,0.1),inset_0_2px_4px_rgba(255,255,255,0.05),inset_0_-1px_0_rgba(0,0,0,0.6),0_30px_60px_-15px_rgba(0,0,0,0.9),0_15px_25px_-5px_rgba(139,92,246,0.15)]
+           relative overflow-hidden transition-all duration-500;
+  }
+
+  /* Add a glossy top highlight to glass-3d */
+  .glass-3d::before {
+    content: '';
+    @apply absolute inset-0 rounded-[2rem] pointer-events-none;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 30%);
+  }
+
+  .panel-floating {
+    @apply m-4 rounded-[2.5rem] shadow-[0_30px_80px_-20px_rgba(0,0,0,0.9)] border border-white/[0.1] bg-black/50 backdrop-blur-[60px] relative overflow-hidden;
+  }
+  
+  .panel-floating::before {
+    content: '';
+    @apply absolute inset-0 pointer-events-none;
+    background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 10%);
+  }
+
+  .btn-gloss {
+    @apply relative overflow-hidden rounded-[1.25rem] bg-gradient-to-b from-violet-500 to-violet-700 text-white font-medium
+           shadow-[inset_0_1px_0_rgba(255,255,255,0.4),inset_0_-2px_0_rgba(0,0,0,0.3),0_15px_25px_-5px_rgba(139,92,246,0.5)]
+           border border-violet-400/40
+           hover:-translate-y-[3px] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-2px_0_rgba(0,0,0,0.3),0_20px_40px_-5px_rgba(139,92,246,0.7)]
+           active:translate-y-[1px] active:shadow-[inset_0_1px_0_rgba(255,255,255,0.2),inset_0_2px_4px_rgba(0,0,0,0.4),0_5px_10px_-5px_rgba(139,92,246,0.5)]
+           transition-all duration-300;
+  }
+}
+
+/* ── Animated Backgrounds ─────────────────────────────────────────────── */
+@keyframes gradientMesh {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.bg-mesh {
+  background: radial-gradient(circle at top left, rgba(91, 33, 182, 0.4) 0%, transparent 40%),
+              radial-gradient(circle at bottom right, rgba(139, 92, 246, 0.2) 0%, transparent 40%),
+              linear-gradient(-45deg, #09090b, #1e1b4b, #09090b);
+  background-size: 400% 400%;
+  animation: gradientMesh 15s ease infinite;
 }
 
 /* ── Animations ───────────────────────────────────────────────────────── */

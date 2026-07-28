@@ -189,7 +189,24 @@ export function useAuth() {
     }
   }, [setKek, setUser, checkAndUploadRSAKeys]);
 
-  // ── Recover ───────────────────────────────────────────────────────────────
+  // ── Recovery ──────────────────────────────────────────────────────────────
+  
+  // ── Unlock Vault (Fallback for Passkeys without PRF) ──────────────────────
+  const unlockVault = useCallback(async (email: string, password: string): Promise<boolean> => {
+    dispatch({ type: 'DERIVE_START' });
+    try {
+      const { salt: saltB64 } = await authApi.getSalt(email);
+      const { kek } = await deriveLoginKeyMaterial(password, saltB64);
+      setKek(kek);
+      dispatch({ type: 'CLEAR_ERROR' });
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Invalid password';
+      dispatch({ type: 'ERROR', message });
+      return false;
+    }
+  }, [setKek]);
+
   const recover = useCallback(async (email: string, mnemonic: string): Promise<void> => {
     dispatch({ type: 'DERIVE_START' });
     try {
@@ -243,6 +260,7 @@ export function useAuth() {
     login,
     recover,
     logout,
+    unlockVault,
     clearError,
   };
 }

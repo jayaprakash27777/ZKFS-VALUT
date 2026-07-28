@@ -81,6 +81,13 @@ public class FileMetadata {
     @Column(name = "iv_wrapped_dek", nullable = false, length = 32)
     private String ivWrappedDek;
 
+    @Column(name = "is_password_protected", nullable = false)
+    @Builder.Default
+    private boolean isPasswordProtected = false;
+
+    @Column(name = "password_salt", columnDefinition = "TEXT")
+    private String passwordSalt;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "upload_status", nullable = false, length = 20)
     @Builder.Default
