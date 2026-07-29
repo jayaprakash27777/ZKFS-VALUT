@@ -30,6 +30,8 @@ export interface InitiateUploadRequest {
   folderId?:         string;  // Optional parent folder UUID
   isPasswordProtected?: boolean;
   passwordSalt?:     string;
+  isPasskeyProtected?: boolean;
+  passkeySalt?:      string;
 }
 
 /**
@@ -63,6 +65,8 @@ export interface FileMetadataResponse {
   folderId:          string | null;
   isPasswordProtected: boolean;
   passwordSalt?:     string | null;
+  isPasskeyProtected: boolean;
+  passkeySalt?:      string | null;
 }
 
 /**
@@ -133,11 +137,14 @@ export const filesApi = {
     formData.append('sha256Checksum', sha256Hex);
     formData.append('ivChunk',        ivB64);
 
-    // chunkIndex is in the URL path, NOT in the form data
     const { data } = await apiClient.post<ChunkUploadResponse>(
       `v1/files/${fileId}/chunk/${chunkIndex}`,
-      formData
-      // Don't set Content-Type — let Axios set multipart/form-data with boundary
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
     );
     return data;
   },

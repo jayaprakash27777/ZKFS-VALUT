@@ -9,7 +9,7 @@
 'use client';
 
 import React from 'react';
-import { motion }  from 'framer-motion';
+import { motion, AnimatePresence }  from 'framer-motion';
 import {
   Shield, Lock, LogOut, HardDrive, Key,
   ChevronRight, AlertTriangle, CheckCircle2,
@@ -211,36 +211,47 @@ function PasskeySection() {
             <div className="text-xs text-zinc-500">No passkeys registered yet.</div>
           ) : (
             <div className="space-y-2">
-              {passkeys.map(pk => (
-                <div key={pk.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
-                  <div className="flex items-center gap-3 flex-1">
-                    <div className="h-8 w-8 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0">
-                      <Key className="h-4 w-4 text-violet-400" />
-                    </div>
-                    <div>
-                      <div className="text-sm text-zinc-200 font-medium flex items-center gap-2">
-                        {pk.name}
-                        {pk.isEncryptionReady ? (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                            Encryption Ready
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20" title="This passkey does not support WebAuthn PRF. Vault unlocks will still require a password.">
-                            Login Only
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[11px] text-zinc-500 mt-0.5">Added on {new Date(pk.createdAt).toLocaleDateString()}</div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDelete(pk.id)}
-                    className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors shrink-0 ml-2"
+              <AnimatePresence initial={false}>
+                {passkeys.map(pk => (
+                  <motion.div
+                    key={pk.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.8, y: 20, rotateX: 45 }}
+                    animate={{ opacity: 1, scale: 1, y: 0, rotateX: 0 }}
+                    exit={{ opacity: 0, scale: 0.8, y: -20, rotateX: -45 }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                    whileHover={{ scale: 1.02, boxShadow: '0 0 20px rgba(139, 92, 246, 0.3)' }}
+                    className="flex items-center justify-between p-3 rounded-xl bg-white/5 border border-white/5 hover:border-violet-500/50 transition-colors"
                   >
-                    Remove
-                  </button>
-                </div>
-              ))}
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="h-8 w-8 rounded-full bg-violet-500/20 flex items-center justify-center shrink-0">
+                        <Key className="h-4 w-4 text-violet-400" />
+                      </div>
+                      <div>
+                        <div className="text-sm text-zinc-200 font-medium flex items-center gap-2">
+                          {pk.name}
+                          {pk.isEncryptionReady ? (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                              Encryption Ready
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold tracking-wide uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20" title="This passkey does not support WebAuthn PRF. Vault unlocks will still require a password.">
+                              Login Only
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-zinc-500 mt-0.5">Added on {new Date(pk.createdAt).toLocaleDateString()}</div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(pk.id)}
+                      className="text-xs text-red-400 hover:text-red-300 px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-colors shrink-0 ml-2"
+                    >
+                      Remove
+                    </button>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
         </div>

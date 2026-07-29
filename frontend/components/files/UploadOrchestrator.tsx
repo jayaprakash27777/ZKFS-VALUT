@@ -60,12 +60,16 @@ async function runUpload(
       const saltBytes = window.crypto.getRandomValues(new Uint8Array(16));
       passwordSalt = Array.from(saltBytes).map(b => b.toString(16).padStart(2, '0')).join('');
       targetKek = await cryptoLib.deriveFileKek(upload.customPassword, passwordSalt);
+    } else if (upload.passkeyKek) {
+      targetKek = upload.passkeyKek;
     }
 
     const { dek, wrappedDEK } = await generateAndWrapDEK(targetKek);
 
     // ── Step 2: Encrypt filename and thumbnail ─────────────────────────
-    const filenameEncrypted = await encryptFilenameForStorage(file.name, kek); // Filename remains encrypted with Master KEK
+    // We ALWAYS encrypt filename/thumbnail with the Master KEK, so the user can see
+    // the exact filenames in the Vault even if the file contents are protected by a passkey/password.
+    const filenameEncrypted = await encryptFilenameForStorage(file.name, kek);
     const thumbnailDataUri = await generateImageThumbnail(file);
     let thumbnailEncrypted = undefined;
     if (thumbnailDataUri) {
@@ -89,6 +93,8 @@ async function runUpload(
       folderId:     get().currentFolderId || undefined,
       isPasswordProtected: !!upload.customPassword,
       passwordSalt: passwordSalt,
+      isPasskeyProtected: !!upload.passkeyKek,
+      passkeySalt: upload.passkeySalt,
     });
 
     const fileId = initiated.fileId;   // backend returns "fileId" not "id"

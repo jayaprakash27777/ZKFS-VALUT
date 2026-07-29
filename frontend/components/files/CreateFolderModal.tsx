@@ -4,6 +4,7 @@ import { X, FolderPlus, Loader2 } from 'lucide-react';
 import { foldersApi } from '@/lib/api/folders';
 import { useVaultStore } from '@/store/useVaultStore';
 import { encryptFilenameForStorage } from '@/lib/crypto/cipher';
+import { bufferToBase64 } from '@/lib/crypto/index';
 import { useQueryClient } from '@tanstack/react-query';
 
 export function CreateFolderModal({
@@ -31,7 +32,7 @@ export function CreateFolderModal({
       // We generate a dummy IV to satisfy the validation.
       const dummyIv = new Uint8Array(12);
       crypto.getRandomValues(dummyIv);
-      const ivB64 = btoa(String.fromCharCode(...dummyIv));
+      const ivB64 = bufferToBase64(dummyIv);
 
       await foldersApi.createFolder({
         nameEncrypted,

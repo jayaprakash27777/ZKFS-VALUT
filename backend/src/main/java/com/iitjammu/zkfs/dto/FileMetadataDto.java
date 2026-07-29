@@ -53,7 +53,13 @@ public record FileMetadataDto(
         boolean isPasswordProtected,
 
         @JsonProperty("passwordSalt")
-        String passwordSalt
+        String passwordSalt,
+
+        @JsonProperty("isPasskeyProtected")
+        boolean isPasskeyProtected,
+
+        @JsonProperty("passkeySalt")
+        String passkeySalt
 
 ) {
     /** Maps a {@link com.iitjammu.zkfs.domain.FileMetadata} entity to this DTO. */
@@ -72,7 +78,9 @@ public record FileMetadataDto(
                 entity.getUpdatedAt(),
                 entity.getFolder() != null ? entity.getFolder().getId() : null,
                 entity.isPasswordProtected(),
-                entity.getPasswordSalt()
+                entity.getPasswordSalt(),
+                entity.isPasskeyProtected(),
+                entity.getPasskeySalt()
         );
     }
 }

@@ -108,6 +108,8 @@ public class FileStorageService {
                 .folder(folder)
                 .isPasswordProtected(request.isPasswordProtected())
                 .passwordSalt(request.passwordSalt())
+                .isPasskeyProtected(request.isPasskeyProtected())
+                .passkeySalt(request.passkeySalt())
                 .filenameEncrypted(request.filenameEncrypted())
                 .mimeType(request.mimeType())
                 .thumbnailEncrypted(request.thumbnailEncrypted())

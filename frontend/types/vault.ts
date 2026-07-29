@@ -22,6 +22,8 @@ export interface VaultFile {
   folderId:          string | null;
   isPasswordProtected: boolean;
   passwordSalt?:     string | null;
+  isPasskeyProtected: boolean;
+  passkeySalt?:      string | null;
 
   // Client-side decrypted fields (populated lazily by the filename cache)
   filename?:         string;
@@ -62,6 +64,8 @@ export interface PendingUpload {
   totalChunks:      number;
   phase:            UploadPhase;
   customPassword?:  string; // Optional file-specific password
+  passkeyKek?:      CryptoKey; // Optional passkey-derived target KEK
+  passkeySalt?:     string; // Required if passkeyKek is set
 
   /**
    * The actual File object — kept in memory only during upload.

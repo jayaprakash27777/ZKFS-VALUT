@@ -21,6 +21,7 @@ import {
   Lock, FileText, Image, Film, Archive, File,
   Download, Eye, Info, Trash2, Share2, Upload,
   MoreHorizontal, AlertTriangle, X, Loader2, FolderOpen, Users,
+  Key, Fingerprint
 } from 'lucide-react';
 import { useVaultStore, selectActiveUploads, selectSelectedIds } from '@/store/useVaultStore';
 import { useDownloader }                    from '@/hooks/useDownloader';
@@ -178,13 +179,15 @@ function DeleteConfirmDialog({
 // ── Download Modal ────────────────────────────────────────────────────────────
 
 function DownloadModal({
-  fileId, displayName, kek, offline, isPasswordProtected, onClose,
+  fileId, displayName, kek, offline, isPasswordProtected, isPasskeyProtected, passkeySalt, onClose,
 }: {
   fileId:      string;
   displayName: string;
   kek:         CryptoKey | null;
   offline?:    boolean;
   isPasswordProtected?: boolean;
+  isPasskeyProtected?: boolean;
+  passkeySalt?: string | null;
   onClose:     () => void;
 }) {
   return (
@@ -192,6 +195,7 @@ function DownloadModal({
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
         <Dialog.Content
+          onInteractOutside={(e) => e.preventDefault()}
           className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
                      w-full max-w-lg rounded-2xl border border-white/10
                      bg-zinc-900 p-6 shadow-2xl focus:outline-none"
@@ -221,6 +225,8 @@ function DownloadModal({
               displayName={displayName}
               offline={offline}
               isPasswordProtected={isPasswordProtected}
+              isPasskeyProtected={isPasskeyProtected}
+              passkeySalt={passkeySalt ?? undefined}
               onComplete={onClose}
             />
           )}
@@ -512,11 +518,25 @@ const FileCard = memo(({
               <Icon className="h-6 w-6 transition-transform duration-300" />
             </div>
           )}
-          <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5
-                          rounded-md bg-black/40 border border-white/10">
-            <Lock className="h-2.5 w-2.5 text-violet-400" />
-            <span className="text-[9px] text-violet-400 font-medium">E2EE</span>
-          </div>
+          {file.isPasskeyProtected ? (
+            <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5
+                            rounded-md bg-indigo-500/20 border border-indigo-500/30">
+              <Fingerprint className="h-2.5 w-2.5 text-indigo-400" />
+              <span className="text-[9px] text-indigo-400 font-medium">PASSKEY</span>
+            </div>
+          ) : file.isPasswordProtected ? (
+            <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5
+                            rounded-md bg-amber-500/20 border border-amber-500/30">
+              <Key className="h-2.5 w-2.5 text-amber-400" />
+              <span className="text-[9px] text-amber-400 font-medium">PASSWORD</span>
+            </div>
+          ) : (
+            <div className="absolute bottom-2 left-2 flex items-center gap-1 px-1.5 py-0.5
+                            rounded-md bg-black/40 border border-white/10">
+              <Lock className="h-2.5 w-2.5 text-violet-400" />
+              <span className="text-[9px] text-violet-400 font-medium">E2EE</span>
+            </div>
+          )}
         </div>
 
         <div className="p-3">
@@ -578,8 +598,14 @@ const FileRow = memo(({
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <Lock className="h-2.5 w-2.5 text-violet-400 shrink-0" />
-            <p className="text-sm text-zinc-200 truncate" title={file.filename ?? '…'}>
+            {file.isPasskeyProtected ? (
+              <Fingerprint className="h-3 w-3 text-indigo-400 shrink-0" title="Encrypted with Passkey" />
+            ) : file.isPasswordProtected ? (
+              <Key className="h-3 w-3 text-amber-400 shrink-0" title="Encrypted with Password" />
+            ) : (
+              <Lock className="h-2.5 w-2.5 text-violet-400 shrink-0" title="E2EE" />
+            )}
+            <p className="text-sm text-zinc-200 truncate" title={file.filename ?? '?'}>
               {file.filename ?? <span className="italic text-zinc-500 text-xs">Encrypted</span>}
             </p>
           </div>
@@ -641,7 +667,7 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
   }));
 
   // ── Local overlay state ────────────────────────────────────────────────────
-  const [downloadTarget, setDownloadTarget] = useState<{ id: string; name: string, offline?: boolean, isPasswordProtected?: boolean } | null>(null);
+  const [downloadTarget, setDownloadTarget] = useState<{ id: string; name: string, offline?: boolean, isPasswordProtected?: boolean, isPasskeyProtected?: boolean, passkeySalt?: string | null } | null>(null);
   const [shareTarget,    setShareTarget]    = useState<{ id: string; name: string, isFolder?: boolean } | null>(null);
   const [shareUserTarget, setShareUserTarget] = useState<VaultFile | null>(null);
   const [deleteTargets,  setDeleteTargets]  = useState<{ id: string; name: string; isFolder?: boolean }[] | null>(null);
@@ -659,33 +685,49 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
       const { decryptFilenameFromStorage, unwrapDEKForDownload } = await import('@/lib/crypto/cipher');
       return Promise.all(items.map(async f => {
         try {
-          if (f.isPasswordProtected) {
-            f.filename = await decryptFilenameFromStorage(f.filenameEncrypted, kek);
-          } else {
-            let keyToUse = kek;
-            if (f.wrappedDek && f.ivWrappedDek) {
-              try {
-                keyToUse = await unwrapDEKForDownload(f.wrappedDek, f.ivWrappedDek, kek);
-              } catch (e) {
-                // Ignore, will fallback to kek
-              }
-            }
+          let decrypted = false;
+          let keyToUse = kek;
+
+          if (f.wrappedDek && f.ivWrappedDek && !f.isPasswordProtected && !f.isPasskeyProtected) {
             try {
-              f.filename = await decryptFilenameFromStorage(f.filenameEncrypted, keyToUse);
+              keyToUse = await unwrapDEKForDownload(f.wrappedDek, f.ivWrappedDek, kek);
             } catch (e) {
-              if (keyToUse !== kek) {
-                // Try fallback to kek for backwards compat
-                f.filename = await decryptFilenameFromStorage(f.filenameEncrypted, kek);
-              } else {
-                throw e;
-              }
+              // Ignore, will fallback to kek
             }
           }
+
+          try {
+            f.filename = await decryptFilenameFromStorage(f.filenameEncrypted, keyToUse);
+            decrypted = true;
+          } catch (e) {
+            if (keyToUse !== kek) {
+              try {
+                f.filename = await decryptFilenameFromStorage(f.filenameEncrypted, kek);
+                decrypted = true;
+              } catch (e2) {}
+            }
+          }
+
+          if (!decrypted) {
+            if (f.isPasskeyProtected) {
+              f.filename = 'Encrypted (Passkey)';
+            } else if (f.isPasswordProtected) {
+              f.filename = 'Encrypted (Password)';
+            } else {
+              f.filename = 'Encrypted file';
+            }
+          }
+
           if (f.thumbnailEncrypted) {
-            f.thumbnail = await decryptFilenameFromStorage(f.thumbnailEncrypted, kek);
+            try {
+              f.thumbnail = await decryptFilenameFromStorage(f.thumbnailEncrypted, kek);
+            } catch (e) {
+              // ignore
+            }
           }
         } catch (e) {
-          f.filename = (f.wrappedDek && !f.isPasswordProtected) ? 'Shared File (Encrypted)' : 'Decryption error';
+          console.error(`Failed to decrypt filename for ${f.id}:`, e);
+          f.filename = (f.wrappedDek && !f.isPasswordProtected && !f.isPasskeyProtected) ? 'Shared File (Encrypted)' : 'Decryption error';
         }
         return f;
       }));
@@ -784,10 +826,10 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
   // ── Global Command Listeners (Cmd+K palette) ───────────────────────────────
   React.useEffect(() => {
     const handleDownloadSelected = () => {
-      if (selectedIds.size > 0) {
+      if (selectedIds.size === 1) {
         const firstId = Array.from(selectedIds)[0];
         const file = serverFiles.find(f => f.id === firstId);
-        if (file) setDownloadTarget({ id: firstId, name: file.filename || 'unknown', isPasswordProtected: file.isPasswordProtected });
+        if (file) setDownloadTarget({ id: firstId, name: file.filename || 'unknown', isPasswordProtected: file.isPasswordProtected, isPasskeyProtected: file.isPasskeyProtected, passkeySalt: file.passkeySalt });
       }
     };
     
@@ -819,7 +861,7 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
 
   const handleDownload = useCallback((id: string) => {
     const file = serverFiles.find(f => f.id === id);
-    setDownloadTarget({ id, name: file?.filename ?? 'Encrypted file', isPasswordProtected: file?.isPasswordProtected });
+    setDownloadTarget({ id, name: file?.filename ?? 'Encrypted file', isPasswordProtected: file?.isPasswordProtected, isPasskeyProtected: file?.isPasskeyProtected, passkeySalt: file?.passkeySalt });
   }, [serverFiles]);
 
   const handleInfo = useCallback((id: string) => {
@@ -1100,8 +1142,8 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
                   isSelected={selectedIds.has(item.id)}
                   onClick={(e) => handleItemClick(item, vRow.index, e)}
                   onPreview={() => setPreviewFileId(item.id)}
-                  onDownload={() => setDownloadTarget({ id: item.id, name: item.filename || 'unknown', isPasswordProtected: item.isPasswordProtected })}
-                  onDownloadOffline={() => setDownloadTarget({ id: item.id, name: item.filename || 'unknown', offline: true, isPasswordProtected: item.isPasswordProtected })}
+                  onDownload={() => setDownloadTarget({ id: item.id, name: item.filename || 'unknown', isPasswordProtected: item.isPasswordProtected, isPasskeyProtected: item.isPasskeyProtected, passkeySalt: item.passkeySalt })}
+                  onDownloadOffline={() => setDownloadTarget({ id: item.id, name: item.filename || 'unknown', offline: true, isPasswordProtected: item.isPasswordProtected, isPasskeyProtected: item.isPasskeyProtected, passkeySalt: item.passkeySalt })}
                   onShare={() => setShareTarget({ id: item.id, name: item.filename || 'unknown' })}
                   onShareUser={() => setShareUserTarget(item as VaultFile)}
                   onInfo={() => handleInfo(item.id)}
@@ -1195,6 +1237,8 @@ export function FileExplorer({ onUploadClick }: { onUploadClick: () => void }) {
           kek={kek}
           offline={downloadTarget.offline}
           isPasswordProtected={downloadTarget.isPasswordProtected}
+          isPasskeyProtected={downloadTarget.isPasskeyProtected}
+          passkeySalt={downloadTarget.passkeySalt}
           onClose={() => setDownloadTarget(null)} 
         />
       )}

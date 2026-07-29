@@ -120,6 +120,7 @@ export interface DownloadOptions {
   sharedIv?: string;
   privateKey?: CryptoKey | null;
   customPassword?: string;
+  passkeyKek?: CryptoKey;
 }
 
 /** Shape returned by GET /v1/files/{fileId} */
@@ -134,6 +135,8 @@ interface FileMetadataResponse {
   uploadStatus:      string;
   isPasswordProtected: boolean;
   passwordSalt?:     string;
+  isPasskeyProtected: boolean;
+  passkeySalt?:      string;
 }
 
 /** Shape returned by GET /v1/files/{fileId}/chunks — one element per chunk */
@@ -352,6 +355,8 @@ export function useDownloader() {
       checkAborted(signal);
 
       let dek: CryptoKey;
+      let targetKekForFilename = kek;
+      
       if (isSharedWithMe && sharedWrappedDek && privateKey) {
         const { decryptWithPrivateKey } = await import('@/lib/crypto/asymmetric');
         const dekBytes = await decryptWithPrivateKey(privateKey, sharedWrappedDek);
@@ -372,7 +377,14 @@ export function useDownloader() {
           }
           const cryptoLib = await import('@/lib/crypto/password');
           const fileKek = await cryptoLib.deriveFileKek(customPassword, meta.passwordSalt);
+          targetKekForFilename = fileKek;
           dek = await unwrapDEKForDownload(meta.wrappedDek, meta.ivWrappedDek, fileKek);
+        } else if (meta.isPasskeyProtected) {
+          if (!opts.passkeyKek) {
+            throw new Error('Passkey required to decrypt this file');
+          }
+          targetKekForFilename = opts.passkeyKek;
+          dek = await unwrapDEKForDownload(meta.wrappedDek, meta.ivWrappedDek, opts.passkeyKek);
         } else {
           dek = await unwrapDEKForDownload(meta.wrappedDek, meta.ivWrappedDek, kek);
         }
@@ -382,11 +394,17 @@ export function useDownloader() {
       // STEP 3: Decrypt filename
       // ────────────────────────────────────────────────────────────────────────
       let fileName = 'Unknown File';
+      const keyToUseForFilename = (meta.isPasswordProtected || meta.isPasskeyProtected) ? targetKekForFilename : dek;
+      
       try {
-        fileName = await decryptFilenameFromStorage(meta.filenameEncrypted, dek);
+        fileName = await decryptFilenameFromStorage(meta.filenameEncrypted, keyToUseForFilename);
       } catch (e) {
-        console.warn("Filename decryption with DEK failed, trying KEK for backwards compat...");
-        fileName = await decryptFilenameFromStorage(meta.filenameEncrypted, kek);
+        console.warn("Filename decryption failed, trying KEK for backwards compat...");
+        try {
+          fileName = await decryptFilenameFromStorage(meta.filenameEncrypted, kek);
+        } catch (e2) {
+          console.warn("Filename decryption with KEK failed as well, keeping Unknown File.");
+        }
       }
 
       dispatch({

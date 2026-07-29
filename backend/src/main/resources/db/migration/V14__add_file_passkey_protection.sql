@@ -1,0 +1,3 @@
+ALTER TABLE files
+ADD COLUMN is_passkey_protected BOOLEAN NOT NULL DEFAULT FALSE,
+ADD COLUMN passkey_salt TEXT;

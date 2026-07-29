@@ -1,19 +1,74 @@
 import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { Lock, Upload, X } from 'lucide-react';
+import { Lock, Upload, X, Fingerprint, Loader2 } from 'lucide-react';
 import { useVaultStore } from '@/store/useVaultStore';
+import { authApi } from '@/lib/api/auth';
+import { startAuthentication } from '@simplewebauthn/browser';
+import { bufferToBase64 } from '@/lib/crypto/index';
 
 export function UploadOptionsModal() {
   const filesToUpload = useVaultStore(s => s.filesToUpload);
   const clearFilesToUpload = useVaultStore(s => s.clearFilesToUpload);
   const addUpload = useVaultStore(s => s.addUpload);
+  const userEmail = useVaultStore(s => s.userEmail);
 
   const [password, setPassword] = useState('');
   const [usePassword, setUsePassword] = useState(false);
+  const [usePasskey, setUsePasskey] = useState(false);
+  const [isProcessingPasskey, setIsProcessingPasskey] = useState(false);
 
   if (filesToUpload.length === 0) return null;
 
-  const handleStart = () => {
+  const handleStart = async () => {
+    let passkeyKek: CryptoKey | undefined = undefined;
+    let passkeySalt: string | undefined = undefined;
+
+    if (usePasskey && userEmail) {
+      setIsProcessingPasskey(true);
+      try {
+        // 1. Generate a random 32-byte salt for this file batch
+        const passkeySaltBytes = window.crypto.getRandomValues(new Uint8Array(32));
+        passkeySalt = bufferToBase64(passkeySaltBytes);
+
+        // 2. Fetch login options to get correct challenge and allowCredentials
+        const res = await authApi.getPasskeyLoginOptions(userEmail);
+        const rawOptions = typeof res.options === 'string' ? JSON.parse(res.options) : res.options;
+        const options = rawOptions.publicKey ? rawOptions.publicKey : rawOptions;
+
+        // 3. Inject PRF extension with our salt
+        options.extensions = {
+          ...(options.extensions || {}),
+          prf: {
+            eval: { first: passkeySaltBytes }
+          }
+        };
+
+        // 4. Prompt user to authenticate
+        const authResp = await startAuthentication({ optionsJSON: options });
+        
+        // 5. Extract PRF output
+        const prfResults = (authResp.clientExtensionResults as any)?.prf?.results;
+        if (!prfResults || !prfResults.first) {
+          throw new Error("Your authenticator does not support the PRF extension required for passkey encryption.");
+        }
+
+        // 6. Import PRF output as the target KEK
+        passkeyKek = await window.crypto.subtle.importKey(
+          'raw',
+          prfResults.first,
+          { name: 'AES-GCM' },
+          false,
+          ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']
+        );
+      } catch (err: any) {
+        console.error("Passkey protection failed:", err);
+        alert(err.message || "Passkey authentication failed.");
+        setIsProcessingPasskey(false);
+        return;
+      }
+      setIsProcessingPasskey(false);
+    }
+
     filesToUpload.forEach((file: File) => {
       const localId = crypto.randomUUID();
       addUpload({
@@ -35,19 +90,23 @@ export function UploadOptionsModal() {
         paused: false,
         abortController: new AbortController(),
         error: null,
-        customPassword: usePassword && password.trim() ? password : undefined,
+        customPassword: (usePassword && !usePasskey && password.trim()) ? password : undefined,
+        passkeyKek,
+        passkeySalt,
       });
     });
     
     // Reset state and close modal
     setPassword('');
     setUsePassword(false);
+    setUsePasskey(false);
     clearFilesToUpload();
   };
 
   const handleCancel = () => {
     setPassword('');
     setUsePassword(false);
+    setUsePasskey(false);
     clearFilesToUpload();
   };
 
@@ -55,7 +114,10 @@ export function UploadOptionsModal() {
     <Dialog.Root open={true} onOpenChange={(open) => !open && handleCancel()}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in" />
-        <Dialog.Content className="glass-3d fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md bg-zinc-900/90 z-50 overflow-hidden outline-none animate-in fade-in zoom-in-95">
+        <Dialog.Content 
+          onInteractOutside={(e) => e.preventDefault()}
+          className="glass-3d fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md bg-zinc-900/90 z-50 overflow-hidden outline-none animate-in fade-in zoom-in-95"
+        >
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/[0.02]">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <Upload className="h-5 w-5 text-violet-400" />
@@ -80,7 +142,10 @@ export function UploadOptionsModal() {
                   <input
                     type="checkbox"
                     checked={usePassword}
-                    onChange={(e) => setUsePassword(e.target.checked)}
+                    onChange={(e) => {
+                      setUsePassword(e.target.checked);
+                      if (e.target.checked) setUsePasskey(false);
+                    }}
                     className="peer appearance-none w-5 h-5 border-2 border-zinc-600 rounded bg-zinc-800/50 checked:bg-violet-500 checked:border-violet-500 transition-all"
                   />
                   <CheckIcon className="absolute w-3 h-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" />
@@ -108,22 +173,53 @@ export function UploadOptionsModal() {
                   </p>
                 </div>
               )}
+
+              <label className="flex items-center gap-3 cursor-pointer group mt-2">
+                <div className="relative flex items-center justify-center w-5 h-5">
+                  <input
+                    type="checkbox"
+                    checked={usePasskey}
+                    onChange={(e) => {
+                      setUsePasskey(e.target.checked);
+                      if (e.target.checked) setUsePassword(false);
+                    }}
+                    className="peer appearance-none w-5 h-5 border-2 border-zinc-600 rounded bg-zinc-800/50 checked:bg-violet-500 checked:border-violet-500 transition-all"
+                  />
+                  <CheckIcon className="absolute w-3 h-3 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Fingerprint className="w-4 h-4 text-zinc-400 group-hover:text-violet-400 transition-colors" />
+                  <span className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">
+                    Protect with Passkey
+                  </span>
+                </div>
+              </label>
+              
+              {usePasskey && (
+                <div className="pl-8 animate-in slide-in-from-top-2 fade-in">
+                  <p className="text-xs text-zinc-500">
+                    This file will be securely locked using your device passkey (biometrics). You will be prompted to authenticate when uploading and downloading.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex items-center justify-end gap-3 px-6 py-4 bg-zinc-950/50 border-t border-white/5">
             <button
               onClick={handleCancel}
-              className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors"
+              disabled={isProcessingPasskey}
+              className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-white transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleStart}
-              disabled={usePassword && !password.trim()}
-              className="btn-gloss px-5 py-2 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={(usePassword && !password.trim()) || isProcessingPasskey}
+              className="btn-gloss px-5 py-2 text-sm text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              Start Upload
+              {isProcessingPasskey && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isProcessingPasskey ? "Authenticating..." : "Start Upload"}
             </button>
           </div>
         </Dialog.Content>

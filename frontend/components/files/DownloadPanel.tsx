@@ -22,6 +22,11 @@ import { clsx } from 'clsx';
 import {
   DownloaderState, DownloadChunkState, useDownloader
 } from '@/hooks/useDownloader';
+import { Fingerprint } from 'lucide-react';
+import { authApi } from '@/lib/api/auth';
+import { startAuthentication } from '@simplewebauthn/browser';
+import { base64ToBuffer } from '@/lib/crypto/index';
+import { useVaultStore } from '@/store/useVaultStore';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -38,6 +43,8 @@ interface DownloadPanelProps {
   offline?: boolean;
   /** Whether the file is password protected */
   isPasswordProtected?: boolean;
+  isPasskeyProtected?: boolean;
+  passkeySalt?: string;
 }
 
 // ── Pipeline Step Definitions ──────────────────────────────────────────────
@@ -71,10 +78,12 @@ const PIPELINE_STEPS = [
 
 // ── Component ──────────────────────────────────────────────────────────────
 
-export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, onClose, isSharedWithMe, sharedWrappedDek, sharedIv, privateKey, isPasswordProtected }: DownloadPanelProps & { onClose?: () => void, isSharedWithMe?: boolean, sharedWrappedDek?: string, sharedIv?: string, privateKey?: CryptoKey | null }) {
+export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, onClose, isSharedWithMe, sharedWrappedDek, sharedIv, privateKey, isPasswordProtected, isPasskeyProtected, passkeySalt }: DownloadPanelProps & { onClose?: () => void, isSharedWithMe?: boolean, sharedWrappedDek?: string, sharedIv?: string, privateKey?: CryptoKey | null }) {
   const { state, download, cancel, reset } = useDownloader();
   const [downloadSpeed, setDownloadSpeed]  = useState<string>('—');
   const [customPassword, setCustomPassword] = useState('');
+  const [isProcessingPasskey, setIsProcessingPasskey] = useState(false);
+  const userEmail = useVaultStore(s => s.userEmail);
   const lastBytesRef = useRef(0);
   const lastTimeRef  = useRef(Date.now());
 
@@ -93,6 +102,46 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
 
   const handleDownload = async () => {
     if (!kek) return;
+    let passkeyKek: CryptoKey | undefined = undefined;
+
+    if (isPasskeyProtected && userEmail && passkeySalt) {
+      setIsProcessingPasskey(true);
+      try {
+        const passkeySaltBytes = new Uint8Array(base64ToBuffer(passkeySalt));
+        const res = await authApi.getPasskeyLoginOptions(userEmail);
+        const rawOptions = typeof res.options === 'string' ? JSON.parse(res.options) : res.options;
+        const options = rawOptions.publicKey ? rawOptions.publicKey : rawOptions;
+
+        options.extensions = {
+          ...(options.extensions || {}),
+          prf: {
+            eval: { first: passkeySaltBytes }
+          }
+        };
+
+        const authResp = await startAuthentication({ optionsJSON: options });
+        const prfResults = (authResp.clientExtensionResults as any)?.prf?.results;
+        
+        if (!prfResults || !prfResults.first) {
+          throw new Error("Your authenticator does not support the PRF extension required for passkey decryption.");
+        }
+
+        passkeyKek = await window.crypto.subtle.importKey(
+          'raw',
+          prfResults.first,
+          { name: 'AES-GCM' },
+          false,
+          ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']
+        );
+      } catch (err: any) {
+        console.error("Passkey decryption failed:", err);
+        alert(err.message || "Passkey authentication failed.");
+        setIsProcessingPasskey(false);
+        return;
+      }
+      setIsProcessingPasskey(false);
+    }
+
     await download({
       fileId,
       kek,
@@ -102,9 +151,13 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
       sharedIv,
       privateKey,
       customPassword: customPassword.trim() || undefined,
+      passkeyKek,
     }).then(() => {
       onComplete?.(displayName || 'file');
-    }).catch(err => {});
+    }).catch(err => {
+      console.error("Download orchestration failed:", err);
+      alert(`Download Error: ${err.message || 'Unknown error occurred'}`);
+    });
   };
 
   // ── Idle state — show download button ─────────────────────────────────────
@@ -127,9 +180,18 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
             />
           </div>
         )}
+        {isPasskeyProtected && (
+          <div className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-2">
+            <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
+              <Fingerprint className="w-3.5 h-3.5" />
+              Passkey Required
+            </label>
+            <p className="text-xs text-zinc-500">You will be prompted to authenticate with your passkey when you click download.</p>
+          </div>
+        )}
         <button
           onClick={handleDownload}
-          disabled={!kek || (isPasswordProtected && !customPassword.trim())}
+          disabled={!kek || (isPasswordProtected && !customPassword.trim()) || isProcessingPasskey}
           className={clsx(
             'flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium rounded-xl',
             'transition-all duration-200 w-full',
@@ -139,8 +201,8 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
           )}
           title={!kek ? 'Re-authenticate to download (session key required)' : undefined}
         >
-          <Download className="h-4 w-4" />
-          {displayName ?? 'Download'} {offline && '(Offline .zkfs)'}
+          {isProcessingPasskey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isProcessingPasskey ? 'Authenticating...' : (displayName ?? 'Download')} {offline && !isProcessingPasskey && '(Offline .zkfs)'}
         </button>
       </div>
     );
@@ -161,7 +223,7 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
           <div>
             <p className="text-sm font-semibold text-white">
               {state.status === 'complete'   ? `Downloaded: ${state.fileName}` :
-               state.status === 'error'      ? 'Download failed'               :
+               state.status === 'error'      ? `Download failed: ${state.error}` :
                state.status === 'cancelled'  ? 'Download cancelled'            :
                state.status === 'assembling' ? 'Building secure file…'         :
                                                'Secure download in progress'}

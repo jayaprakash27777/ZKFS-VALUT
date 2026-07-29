@@ -95,7 +95,7 @@ class FileControllerIntegrationTest {
         InitiateUploadRequest request = new InitiateUploadRequest(
                 "filenameEncrypted", "application/pdf", null,
                 3, 15_728_640L,
-                WRAPPED_DEK, IV_WRAPPED_DEK, null, false, null
+                WRAPPED_DEK, IV_WRAPPED_DEK, null, false, null, false, null
         );
 
         MvcResult result = mvc.perform(post("/v1/files/initiate")
@@ -128,7 +128,7 @@ class FileControllerIntegrationTest {
     @DisplayName("POST /files/initiate → 400 with totalChunks=0")
     void initiate_ZeroChunks_Returns400() throws Exception {
         InitiateUploadRequest request = new InitiateUploadRequest(
-                FILENAME_ENC, null, null, 0, 0L, WRAPPED_DEK, IV_WRAPPED_DEK, null, false, null
+                FILENAME_ENC, null, null, 0, 0L, WRAPPED_DEK, IV_WRAPPED_DEK, null, false, null, false, null
         );
 
         mvc.perform(post("/v1/files/initiate")
@@ -193,7 +193,7 @@ class FileControllerIntegrationTest {
                 .header("Authorization", "Bearer " + jwtToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(new InitiateUploadRequest(
-                        FILENAME_ENC, "text/plain", null, 1, 60L, WRAPPED_DEK, IV_WRAPPED_DEK, null, false, null
+                        FILENAME_ENC, "text/plain", null, 1, 60L, WRAPPED_DEK, IV_WRAPPED_DEK, null, false, null, false, null
                 ))))
                 .andExpect(status().isCreated())
                 .andReturn();

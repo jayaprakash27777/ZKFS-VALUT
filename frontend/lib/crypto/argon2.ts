@@ -27,6 +27,7 @@
  */
 
 import { argon2id } from 'hash-wasm';
+import { bufferToBase64 } from './index';
 
 // ── Argon2id Parameters ────────────────────────────────────────────────────
 
@@ -115,7 +116,7 @@ export async function importKEKAsCryptoKey(kekBytes: Uint8Array): Promise<Crypto
     'raw',
     kekBytes as any,
     { name: 'AES-GCM', length: 256 },
-    false,                        // ← not extractable
+    true,                         // ← Must be extractable so it can be wrapped for Passkeys
     ['wrapKey', 'unwrapKey', 'encrypt', 'decrypt']
   );
 }
@@ -202,7 +203,7 @@ export async function deriveRegistrationKeyMaterial(
   const authHashHex = await deriveAuthHash(kekBytes);
 
   // 5. Encode salt as Base64 for transmission
-  const saltB64 = btoa(String.fromCharCode(...saltBytes));
+  const saltB64 = bufferToBase64(saltBytes);
 
   return { kek, saltB64, authHashHex, kekBytes };
 }

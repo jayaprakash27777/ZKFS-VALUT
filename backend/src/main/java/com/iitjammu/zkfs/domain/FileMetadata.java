@@ -87,6 +87,12 @@ public class FileMetadata {
 
     @Column(name = "password_salt", columnDefinition = "TEXT")
     private String passwordSalt;
+    @Column(name = "is_passkey_protected", nullable = false)
+    @Builder.Default
+    private boolean isPasskeyProtected = false;
+
+    @Column(name = "passkey_salt", columnDefinition = "TEXT")
+    private String passkeySalt;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "upload_status", nullable = false, length = 20)

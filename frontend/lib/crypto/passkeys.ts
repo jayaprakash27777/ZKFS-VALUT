@@ -76,6 +76,6 @@ export async function unwrapKekWithPrf(wrappedKekBase64: string, prfOutput: Arra
     rawKek,
     { name: 'AES-GCM' },
     true, // Extractable so it can be exported later if needed
-    ['encrypt', 'decrypt']
+    ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']
   );
 }

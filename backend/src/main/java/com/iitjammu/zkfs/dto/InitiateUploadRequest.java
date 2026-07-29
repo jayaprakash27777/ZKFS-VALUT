@@ -1,6 +1,7 @@
 package com.iitjammu.zkfs.dto;
 
 import jakarta.validation.constraints.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 /**
  * Request body for POST /api/v1/files/initiate
@@ -49,8 +50,14 @@ public record InitiateUploadRequest(
         
         java.util.UUID folderId,
 
+        @JsonProperty("isPasswordProtected")
         boolean isPasswordProtected,
 
-        String passwordSalt
+        String passwordSalt,
+
+        @JsonProperty("isPasskeyProtected")
+        boolean isPasskeyProtected,
+
+        String passkeySalt
 
 ) {}
