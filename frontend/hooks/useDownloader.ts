@@ -323,7 +323,7 @@ export function useDownloader() {
   }, []);
 
   const download = useCallback(async (opts: DownloadOptions): Promise<void> => {
-    const { fileId, kek, onProgress, onComplete, onError, offline = false, isSharedWithMe, sharedWrappedDek, privateKey, customPassword } = opts;
+    const { fileId, kek, onProgress, onComplete, onError, offline = false, isSharedWithMe, sharedWrappedDek, privateKey, customPassword, passkeyKek } = opts;
 
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
@@ -354,8 +354,16 @@ export function useDownloader() {
       dispatch({ type: 'UNWRAP_KEY' });
       checkAborted(signal);
 
+      console.log('[ZKFS Download] Step 2: Unwrapping DEK', {
+        isPasskeyProtected: meta.isPasskeyProtected,
+        isPasswordProtected: meta.isPasswordProtected,
+        hasPasskeyKek: !!passkeyKek,
+        hasCustomPassword: !!customPassword,
+        isSharedWithMe: !!isSharedWithMe,
+        wrappedDekLength: meta.wrappedDek?.length,
+      });
+
       let dek: CryptoKey;
-      let targetKekForFilename = kek;
       
       if (isSharedWithMe && sharedWrappedDek && privateKey) {
         const { decryptWithPrivateKey } = await import('@/lib/crypto/asymmetric');
@@ -377,14 +385,12 @@ export function useDownloader() {
           }
           const cryptoLib = await import('@/lib/crypto/password');
           const fileKek = await cryptoLib.deriveFileKek(customPassword, meta.passwordSalt);
-          targetKekForFilename = fileKek;
           dek = await unwrapDEKForDownload(meta.wrappedDek, meta.ivWrappedDek, fileKek);
         } else if (meta.isPasskeyProtected) {
-          if (!opts.passkeyKek) {
-            throw new Error('Passkey required to decrypt this file');
+          if (!passkeyKek) {
+            throw new Error('Passkey authentication is required to decrypt this file. Please try again.');
           }
-          targetKekForFilename = opts.passkeyKek;
-          dek = await unwrapDEKForDownload(meta.wrappedDek, meta.ivWrappedDek, opts.passkeyKek);
+          dek = await unwrapDEKForDownload(meta.wrappedDek, meta.ivWrappedDek, passkeyKek);
         } else {
           dek = await unwrapDEKForDownload(meta.wrappedDek, meta.ivWrappedDek, kek);
         }
@@ -392,19 +398,16 @@ export function useDownloader() {
 
       // ────────────────────────────────────────────────────────────────────────
       // STEP 3: Decrypt filename
+      // Filenames are always encrypted with the master KEK (kek).
+      // File CONTENTS are encrypted with the passkey/password-derived DEK.
       // ────────────────────────────────────────────────────────────────────────
       let fileName = 'Unknown File';
-      const keyToUseForFilename = (meta.isPasswordProtected || meta.isPasskeyProtected) ? targetKekForFilename : dek;
-      
       try {
-        fileName = await decryptFilenameFromStorage(meta.filenameEncrypted, keyToUseForFilename);
+        // Always try with master KEK first (new behaviour - filenames use master KEK)
+        fileName = await decryptFilenameFromStorage(meta.filenameEncrypted, kek);
+        console.log('[ZKFS Download] Step 3: Filename decrypted OK:', fileName);
       } catch (e) {
-        console.warn("Filename decryption failed, trying KEK for backwards compat...");
-        try {
-          fileName = await decryptFilenameFromStorage(meta.filenameEncrypted, kek);
-        } catch (e2) {
-          console.warn("Filename decryption with KEK failed as well, keeping Unknown File.");
-        }
+        console.warn("[ZKFS Download] Filename decryption with master KEK failed:", e);
       }
 
       dispatch({
@@ -418,8 +421,12 @@ export function useDownloader() {
       // ────────────────────────────────────────────────────────────────────────
       // File System Access API (Stream directly to disk for large files)
       // ────────────────────────────────────────────────────────────────────────
+      // File System Access API — skip for passkey-protected files to avoid double browser dialogs
+      // (user already had to interact with a passkey dialog; a second OS file-picker right after
+      //  causes AbortError or confusion on some browsers)
       let stream: any = null; // FileSystemWritableFileStream
-      if (!offline && 'showSaveFilePicker' in window) {
+      const useStreamApi = !offline && !meta.isPasskeyProtected && 'showSaveFilePicker' in window;
+      if (useStreamApi) {
         try {
           const handle = await (window as any).showSaveFilePicker({ suggestedName: fileName });
           stream = await handle.createWritable();
@@ -428,7 +435,7 @@ export function useDownloader() {
             dispatch({ type: 'CANCEL' });
             return;
           }
-          console.warn('Failed to obtain FileSystemWritableFileStream, falling back to Blob', err);
+          console.warn('[ZKFS Download] Failed to obtain FileSystemWritableFileStream, falling back to Blob', err);
         }
       }
 

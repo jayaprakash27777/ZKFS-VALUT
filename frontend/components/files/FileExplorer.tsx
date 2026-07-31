@@ -191,11 +191,17 @@ function DownloadModal({
   onClose:     () => void;
 }) {
   return (
-    <Dialog.Root open onOpenChange={v => !v && onClose()}>
+    // modal={false} keeps the dialog open even when a native OS dialog (passkey, file picker)
+    // steals the browser window focus — without this, Radix fires onOpenChange(false) and
+    // closes the download panel mid-authentication.
+    <Dialog.Root open modal={false}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm" />
         <Dialog.Content
           onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onFocusOutside={(e) => e.preventDefault()}
           className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
                      w-full max-w-lg rounded-2xl border border-white/10
                      bg-zinc-900 p-6 shadow-2xl focus:outline-none"

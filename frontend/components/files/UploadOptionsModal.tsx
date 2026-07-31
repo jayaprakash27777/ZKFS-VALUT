@@ -110,12 +110,17 @@ export function UploadOptionsModal() {
     clearFilesToUpload();
   };
 
+  // modal={false} + preventDefault on all interaction events prevents the dialog
+  // from closing when the OS passkey dialog steals the browser window focus.
   return (
-    <Dialog.Root open={true} onOpenChange={(open) => !open && handleCancel()}>
+    <Dialog.Root open={true}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in" />
         <Dialog.Content 
           onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onFocusOutside={(e) => e.preventDefault()}
           className="glass-3d fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-md bg-zinc-900/90 z-50 overflow-hidden outline-none animate-in fade-in zoom-in-95"
         >
           <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-white/[0.02]">

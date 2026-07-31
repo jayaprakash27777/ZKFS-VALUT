@@ -23,10 +23,8 @@ import {
   DownloaderState, DownloadChunkState, useDownloader
 } from '@/hooks/useDownloader';
 import { Fingerprint } from 'lucide-react';
-import { authApi } from '@/lib/api/auth';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { base64ToBuffer } from '@/lib/crypto/index';
-import { useVaultStore } from '@/store/useVaultStore';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -83,7 +81,6 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
   const [downloadSpeed, setDownloadSpeed]  = useState<string>('—');
   const [customPassword, setCustomPassword] = useState('');
   const [isProcessingPasskey, setIsProcessingPasskey] = useState(false);
-  const userEmail = useVaultStore(s => s.userEmail);
   const lastBytesRef = useRef(0);
   const lastTimeRef  = useRef(Date.now());
 
@@ -104,39 +101,73 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
     if (!kek) return;
     let passkeyKek: CryptoKey | undefined = undefined;
 
-    if (isPasskeyProtected && userEmail && passkeySalt) {
+    if (isPasskeyProtected) {
+      if (!passkeySalt) {
+        alert("This file's passkey data is missing. It may have been uploaded with an older version. Please re-upload it.");
+        return;
+      }
+
       setIsProcessingPasskey(true);
       try {
+        // Convert the stored base64 salt back to Uint8Array — must match what was used during upload
         const passkeySaltBytes = new Uint8Array(base64ToBuffer(passkeySalt));
-        const res = await authApi.getPasskeyLoginOptions(userEmail);
-        const rawOptions = typeof res.options === 'string' ? JSON.parse(res.options) : res.options;
-        const options = rawOptions.publicKey ? rawOptions.publicKey : rawOptions;
 
-        options.extensions = {
-          ...(options.extensions || {}),
-          prf: {
-            eval: { first: passkeySaltBytes }
+        // Use a client-generated challenge for PRF-only operations.
+        // PRF output is deterministic: f(credential_private_key, salt) — independent of the challenge.
+        // The challenge is only needed for authentication ceremonies (login), not for key derivation.
+        const randomChallenge = window.crypto.getRandomValues(new Uint8Array(32));
+        // SimpleWebAuthn v13 expects challenge as base64url string in optionsJSON
+        const challengeB64 = btoa(String.fromCharCode(...randomChallenge))
+          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+
+        // Build minimal assertion options — no server round-trip needed for PRF
+        const options: any = {
+          challenge: challengeB64,
+          rpId: window.location.hostname,
+          allowCredentials: [],   // empty = let the browser pick the right key
+          userVerification: 'preferred',
+          timeout: 60000,
+          extensions: {
+            prf: {
+              eval: { first: passkeySaltBytes }
+            }
           }
         };
 
+        console.log('[ZKFS PRF Download] Requesting passkey with salt length:', passkeySaltBytes.length);
+
         const authResp = await startAuthentication({ optionsJSON: options });
         const prfResults = (authResp.clientExtensionResults as any)?.prf?.results;
-        
-        if (!prfResults || !prfResults.first) {
-          throw new Error("Your authenticator does not support the PRF extension required for passkey decryption.");
+
+        console.log('[ZKFS PRF Download] clientExtensionResults:', authResp.clientExtensionResults);
+
+        if (!prfResults?.first) {
+          throw new Error(
+            "Your authenticator did not return a PRF result. " +
+            "This usually means: (1) your browser does not support the PRF extension, " +
+            "or (2) the passkey was registered without PRF. " +
+            "Try Chrome 116+ on a device with a platform authenticator (Touch ID, Windows Hello, or a PRF-capable YubiKey)."
+          );
         }
+
+        console.log('[ZKFS PRF Download] PRF result received, length:', (prfResults.first as ArrayBuffer).byteLength);
 
         passkeyKek = await window.crypto.subtle.importKey(
           'raw',
-          prfResults.first,
+          prfResults.first as ArrayBuffer,
           { name: 'AES-GCM' },
           false,
           ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']
         );
+
+        console.log('[ZKFS PRF Download] passkeyKek imported successfully');
       } catch (err: any) {
-        console.error("Passkey decryption failed:", err);
-        alert(err.message || "Passkey authentication failed.");
+        console.error('[ZKFS PRF Download] Passkey error:', err);
         setIsProcessingPasskey(false);
+        if (err.name === 'AbortError' || err.code === 'ERROR_CEREMONY_ABORTED') {
+          return; // User cancelled — no alert needed
+        }
+        alert(`Passkey Error: ${err.message || 'Authentication failed. Please try again.'}`);
         return;
       }
       setIsProcessingPasskey(false);
@@ -155,10 +186,11 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
     }).then(() => {
       onComplete?.(displayName || 'file');
     }).catch(err => {
-      console.error("Download orchestration failed:", err);
+      console.error('[ZKFS Download] Orchestration failed:', err);
       alert(`Download Error: ${err.message || 'Unknown error occurred'}`);
     });
   };
+
 
   // ── Idle state — show download button ─────────────────────────────────────
 
