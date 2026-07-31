@@ -29,6 +29,8 @@ import {
 import { useVaultStore } from '@/store/useVaultStore';
 import { shareApi }      from '@/lib/api/share';
 import apiClient         from '@/lib/api/client';
+import { authApi }       from '@/lib/api/auth';
+import { startAuthentication } from '@simplewebauthn/browser';
 import {
   generateArgon2Salt,
   deriveKEKBytes,
@@ -133,6 +135,7 @@ function ShareLinkCard({ url }: { url: string }) {
 
 export function ShareModal({ open, onClose, targetId, displayName, isFolder = false }: ShareModalProps) {
   const kek = useVaultStore(s => s.kek);
+  const userEmail = useVaultStore(s => s.userEmail);
 
   const [password,    setPassword]    = useState('');
   const [showPass,    setShowPass]    = useState(false);
@@ -181,13 +184,54 @@ export function ShareModal({ open, onClose, targetId, displayName, isFolder = fa
       let shareIvDekB64 = "";
       
       if (!isFolder) {
-          const metaResp = await apiClient.get<{ wrappedDek: string, ivWrappedDek: string }>(`/v1/files/${targetId}`);
+          const metaResp = await apiClient.get<any>(`/v1/files/${targetId}`);
           const fileMeta = metaResp.data;
+
+          let activeKek = kek;
+
+          if (fileMeta.isPasswordProtected) {
+              const pwd = window.prompt("This file is password protected. Enter the file password to generate a share link:");
+              if (!pwd) throw new Error("File password is required to share this file.");
+              const fileKekBytes = await deriveKEKBytes(pwd, base64ToBuffer(fileMeta.passwordSalt));
+              activeKek = await importKEKAsCryptoKey(fileKekBytes);
+          }
+          
+          if (fileMeta.isPasskeyProtected) {
+              if (!userEmail) throw new Error("User email not found in session.");
+              if (!fileMeta.passkeySalt) throw new Error("Passkey salt missing from file metadata.");
+              
+              const passkeySaltBytes = new Uint8Array(base64ToBuffer(fileMeta.passkeySalt));
+              const loginOptsRes = await authApi.getPasskeyLoginOptions(userEmail);
+              const rawOptions = typeof loginOptsRes.options === 'string' ? JSON.parse(loginOptsRes.options) : loginOptsRes.options;
+              const options = rawOptions.publicKey ? rawOptions.publicKey : rawOptions;
+
+              options.extensions = {
+                ...(options.extensions || {}),
+                prf: {
+                  eval: { first: passkeySaltBytes }
+                }
+              };
+
+              const authResp = await startAuthentication({ optionsJSON: options });
+              const prfResults = (authResp.clientExtensionResults as any)?.prf?.results;
+              
+              if (!prfResults || !prfResults.first) {
+                throw new Error("Your authenticator does not support the PRF extension required for passkey decryption.");
+              }
+
+              activeKek = await window.crypto.subtle.importKey(
+                'raw',
+                prfResults.first,
+                { name: 'AES-GCM' },
+                false,
+                ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']
+              );
+          }
 
           const dek = await unwrapDEKForDownload(
             fileMeta.wrappedDek,
             fileMeta.ivWrappedDek,
-            kek
+            activeKek
           );
 
           const { wrappedDekB64, ivB64 } = await wrapDEK(dek, shareKEK);
@@ -226,7 +270,22 @@ export function ShareModal({ open, onClose, targetId, displayName, isFolder = fa
       setStatus('done');
 
     } catch (err: any) {
-      setError(err?.message ?? 'Failed to create share. Please try again.');
+      console.error('Share creation failed:', err);
+      let errMsg = err?.message || err?.response?.data?.message || err?.name;
+      
+      if (err instanceof DOMException && err.name === 'OperationError') {
+         errMsg = 'Cryptographic operation failed. Your session key may be invalid or the file may have secondary protection.';
+      } else if (!errMsg || errMsg.trim() === '' || errMsg === '{}') {
+         try {
+           errMsg = typeof err === 'object' ? JSON.stringify(err, Object.getOwnPropertyNames(err)) : String(err);
+         } catch {
+           errMsg = String(err);
+         }
+      }
+      
+      if (errMsg === '{}') errMsg = 'An unknown error occurred during share creation.';
+      
+      setError(errMsg || 'Failed to create share. Please try again.');
       setStatus('error');
     }
   }, [kek, password, targetId, isFolder, expiresHours, maxDownloads, displayName]);

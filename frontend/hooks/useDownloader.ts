@@ -666,8 +666,8 @@ function triggerBrowserDownload(blobUrl: string, fileName: string): void {
   anchor.click();
   document.body.removeChild(anchor);
 
-  // Revoke after a tick — browser needs time to begin the download stream
-  setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+  // Revoke after 60 seconds — browser needs time to begin the download stream
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
 }
 
 // ── Custom Error Types ─────────────────────────────────────────────────────
