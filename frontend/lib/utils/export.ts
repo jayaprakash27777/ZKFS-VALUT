@@ -38,5 +38,5 @@ export async function exportEncryptedZkfs(
   a.download = `${originalFilename}.zkfs`;
   a.click();
 
-  setTimeout(() => URL.revokeObjectURL(url), 100);
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
