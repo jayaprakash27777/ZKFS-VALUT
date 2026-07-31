@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { Lock, Upload, X, Fingerprint, Loader2 } from 'lucide-react';
 import { useVaultStore } from '@/store/useVaultStore';
-import { authApi } from '@/lib/api/auth';
 import { startAuthentication } from '@simplewebauthn/browser';
 import { bufferToBase64 } from '@/lib/crypto/index';
 
@@ -30,40 +29,52 @@ export function UploadOptionsModal() {
         const passkeySaltBytes = window.crypto.getRandomValues(new Uint8Array(32));
         passkeySalt = bufferToBase64(passkeySaltBytes);
 
-        // 2. Fetch login options to get correct challenge and allowCredentials
-        const res = await authApi.getPasskeyLoginOptions(userEmail);
-        const rawOptions = typeof res.options === 'string' ? JSON.parse(res.options) : res.options;
-        const options = rawOptions.publicKey ? rawOptions.publicKey : rawOptions;
+        // 2. Use client-generated challenge for PRF-only operation
+        // PRF output is deterministic on (credential, salt) — independent of challenge
+        const randomChallenge = window.crypto.getRandomValues(new Uint8Array(32));
+        const challengeB64 = btoa(String.fromCharCode(...randomChallenge))
+          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 
-        // 3. Inject PRF extension with our salt
-        options.extensions = {
-          ...(options.extensions || {}),
-          prf: {
-            eval: { first: passkeySaltBytes }
+        const options: any = {
+          challenge: challengeB64,
+          rpId: window.location.hostname,
+          allowCredentials: [],   // empty = let browser pick the registered key
+          userVerification: 'preferred',
+          timeout: 60000,
+          extensions: {
+            prf: {
+              eval: { first: passkeySaltBytes }
+            }
           }
         };
 
-        // 4. Prompt user to authenticate
+        // 3. Prompt user to authenticate with their passkey
         const authResp = await startAuthentication({ optionsJSON: options });
         
-        // 5. Extract PRF output
+        // 4. Extract PRF output
         const prfResults = (authResp.clientExtensionResults as any)?.prf?.results;
         if (!prfResults || !prfResults.first) {
-          throw new Error("Your authenticator does not support the PRF extension required for passkey encryption.");
+          throw new Error(
+            "Your authenticator did not return a PRF result. " +
+            "Passkey file protection requires Chrome 116+ with a PRF-capable authenticator " +
+            "(Touch ID, Windows Hello, or YubiKey 5+)."
+          );
         }
 
-        // 6. Import PRF output as the target KEK
+        // 5. Import PRF output as the file KEK
         passkeyKek = await window.crypto.subtle.importKey(
           'raw',
-          prfResults.first,
+          prfResults.first as ArrayBuffer,
           { name: 'AES-GCM' },
           false,
           ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']
         );
       } catch (err: any) {
         console.error("Passkey protection failed:", err);
-        alert(err.message || "Passkey authentication failed.");
         setIsProcessingPasskey(false);
+        if (err.name !== 'AbortError') {
+          alert(err.message || "Passkey authentication failed.");
+        }
         return;
       }
       setIsProcessingPasskey(false);
