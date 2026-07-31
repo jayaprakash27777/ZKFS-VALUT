@@ -121,10 +121,14 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
           .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 
         // Build minimal assertion options — no server round-trip needed for PRF
+        // authenticatorAttachment: 'platform' forces only built-in device authenticators
+        // (Windows Hello, Touch ID). Cross-device passkeys (iPhone QR) won't work here
+        // because file encryption is tied to the specific credential that encrypted the DEK.
         const options: any = {
           challenge: challengeB64,
           rpId: window.location.hostname,
-          allowCredentials: [],   // empty = let the browser pick the right key
+          allowCredentials: [],
+          authenticatorAttachment: 'platform',
           userVerification: 'preferred',
           timeout: 60000,
           extensions: {
@@ -167,7 +171,17 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
         if (err.name === 'AbortError' || err.code === 'ERROR_CEREMONY_ABORTED') {
           return; // User cancelled — no alert needed
         }
-        alert(`Passkey Error: ${err.message || 'Authentication failed. Please try again.'}`);
+        if (err.name === 'NotAllowedError' || err.message?.includes('no passkeys') || err.message?.includes('No credential')) {
+          alert(
+            "No passkey found on this device.\n\n" +
+            "This file was encrypted with a passkey that is registered on a specific device. " +
+            "You must use the SAME device and browser where you originally added the passkey.\n\n" +
+            "iPhone passkeys cannot decrypt files encrypted on a Windows/Mac PC passkey, " +
+            "because each device's passkey produces a unique encryption key."
+          );
+        } else {
+          alert(`Passkey Error: ${err.message || 'Authentication failed. Please try again.'}`);
+        }
         return;
       }
       setIsProcessingPasskey(false);
@@ -213,12 +227,17 @@ export function DownloadPanel({ fileId, kek, displayName, onComplete, offline, o
           </div>
         )}
         {isPasskeyProtected && (
-          <div className="flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-2">
+          <div className="flex flex-col gap-2 animate-in fade-in slide-in-from-top-2">
             <label className="text-xs font-medium text-zinc-400 flex items-center gap-1.5">
               <Fingerprint className="w-3.5 h-3.5" />
-              Passkey Required
+              Passkey Authentication Required
             </label>
-            <p className="text-xs text-zinc-500">You will be prompted to authenticate with your passkey when you click download.</p>
+            <p className="text-xs text-zinc-500">
+              🔐 You will be prompted by <strong className="text-zinc-300">Windows Hello / Touch ID</strong> on this device.
+            </p>
+            <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+              ⚠️ <strong>Same device required.</strong> This file can only be decrypted on the device where it was originally encrypted. iPhone / other devices will not work.
+            </p>
           </div>
         )}
         <button

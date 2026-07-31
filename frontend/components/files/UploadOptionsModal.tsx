@@ -38,7 +38,11 @@ export function UploadOptionsModal() {
         const options: any = {
           challenge: challengeB64,
           rpId: window.location.hostname,
-          allowCredentials: [],   // empty = let browser pick the registered key
+          allowCredentials: [],
+          // 'platform' = only THIS device's built-in authenticator (Windows Hello, Touch ID).
+          // Cross-device passkeys (iPhone QR code) won't work for file encryption because
+          // the PRF output is specific to the credential on that device.
+          authenticatorAttachment: 'platform',
           userVerification: 'preferred',
           timeout: 60000,
           extensions: {
@@ -72,7 +76,18 @@ export function UploadOptionsModal() {
       } catch (err: any) {
         console.error("Passkey protection failed:", err);
         setIsProcessingPasskey(false);
-        if (err.name !== 'AbortError') {
+        if (err.name === 'AbortError' || err.code === 'ERROR_CEREMONY_ABORTED') {
+          return; // user cancelled
+        }
+        if (err.name === 'NotAllowedError' || err.message?.includes('no passkeys') || err.message?.includes('No credential')) {
+          alert(
+            "No passkey found on this device for 'localhost'.\n\n" +
+            "Passkey file protection uses YOUR DEVICE's built-in authenticator " +
+            "(Windows Hello / Touch ID / Face ID) and is device-specific — " +
+            "it cannot use a passkey saved on your iPhone or another device.\n\n" +
+            "To use this feature, please first register a passkey in Settings → Security."
+          );
+        } else {
           alert(err.message || "Passkey authentication failed.");
         }
         return;
@@ -210,11 +225,14 @@ export function UploadOptionsModal() {
                   </span>
                 </div>
               </label>
-              
+
               {usePasskey && (
-                <div className="pl-8 animate-in slide-in-from-top-2 fade-in">
-                  <p className="text-xs text-zinc-500">
-                    This file will be securely locked using your device passkey (biometrics). You will be prompted to authenticate when uploading and downloading.
+                <div className="pl-8 animate-in slide-in-from-top-2 fade-in space-y-2">
+                  <p className="text-xs text-zinc-400">
+                    🔐 Locked to <strong className="text-white">this device only</strong> using your built-in authenticator (Windows Hello / Touch ID / Face ID).
+                  </p>
+                  <p className="text-xs text-amber-400/80 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                    ⚠️ <strong>Device-specific:</strong> You must use <em>this same device and browser</em> to download. iPhone or other devices cannot decrypt passkey-protected files encrypted here.
                   </p>
                 </div>
               )}
